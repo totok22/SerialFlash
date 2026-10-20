@@ -58,6 +58,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-24.04
+    environment: publish-vscode-marketplace
     permissions:
       contents: write
       id-token: write
@@ -83,16 +84,20 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" dist/*.vsix --verify-tag --title "SerialFlash $GITHUB_REF_NAME" --generate-notes
           fi
-      - name: Publish to Marketplace (trusted publishing)
-        if: vars.MARKETPLACE_AUTH == 'oidc'
-        run: npx --yes @vscode/vsce@4.0.0 publish --oidc --packagePath dist/*.vsix --skip-duplicate
-      - name: Publish to Marketplace (PAT)
-        if: vars.MARKETPLACE_AUTH != 'oidc'
+      - name: Check Entra federation configuration
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
         run: |
-          if [ -z "$VSCE_PAT" ]; then
-            echo "::error::Repository secret VSCE_PAT is missing. See docs/RELEASING.md."
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ]; then
+            echo "::error::Set AZURE_CLIENT_ID and AZURE_TENANT_ID as GitHub Actions variables; see docs/RELEASING.md."
             exit 1
           fi
-          npx --yes @vscode/vsce@4.0.0 publish --packagePath dist/*.vsix --skip-duplicate
+      - name: Login to Microsoft Entra ID (GitHub OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Publish to VS Code Marketplace
+        run: npx --yes @vscode/vsce@4.0.0 publish --azure-credential --packagePath dist/*.vsix --skip-duplicate
