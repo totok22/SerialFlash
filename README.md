@@ -31,7 +31,7 @@ code --install-extension totok22.serialflash-stm32
 ```
 
 > [!NOTE]
-> The published Marketplace release is **0.2.0**. Recent additions such as bilingual UI are documented in [CHANGELOG.md](CHANGELOG.md). For local builds and debugging, see [CONTRIBUTING.en.md](CONTRIBUTING.en.md).
+> The published Marketplace release is **0.2.1**. The bilingual panel and expanded documentation are documented in [CHANGELOG.md](CHANGELOG.md). For local builds and debugging, see [CONTRIBUTING.en.md](CONTRIBUTING.en.md).
 
 ---
 

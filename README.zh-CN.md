@@ -31,7 +31,7 @@ code --install-extension totok22.serialflash-stm32
 ```
 
 > [!NOTE]
-> 当前市场已发布版本为 **0.2.0**。双语面板等最新改动见 [CHANGELOG.md](CHANGELOG.md)。本地开发与调试请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> 当前市场已发布版本为 **0.2.1**。双语面板与文档更新见 [CHANGELOG.md](CHANGELOG.md)。本地开发与调试请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 

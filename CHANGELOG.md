@@ -1,6 +1,6 @@
 # 变更记录
 
-## Unreleased
+## 0.2.1 - 2026-10-20
 
 - 将 VS Code 插件作为 `main` 的主要版本，Web Serial 页面和 CLI 单独维护在 `web` 分支。
 - 依据工程文档规范重构与精简双语 README 及 `docs/` 下全套技术文档，剔除冗余免责声明与 AI 模板化表达，明确单事实来源（Single Source of Truth）。
@@ -11,8 +11,10 @@
 - 面板按 VS Code 显示语言自适应中英文，英文为默认回退；复位模式选择提供对应国际化文案。
 - 自动发现固件时排除 `CMakeFiles` 编译器探测产物，避免误选探测 BIN。
 - 增加可复用的 `.vscode/launch.json` F5 调试入口，更新 `CONTRIBUTING.md` 本地开发与打包流程。
-
-以上改动尚未发布到扩展市场。当前已发布版本仍为 0.2.0，发布前由维护者决定下一版本号。
+- 增加 GitHub Actions 六平台 CI，覆盖单元测试、`serialport` 原生模块冒烟测试和平台专用 VSIX 打包。
+- 增加基于 Microsoft Entra ID 与 GitHub OIDC 的 Marketplace 自动发布流程，推送 `v*` 标签时创建 GitHub Release 并发布扩展。
+- 新增 `docs/RELEASING.md`，记录 CI 构建、Entra 身份配置和正式发布步骤。
+- 修复 Windows 路径下的固件发现单元测试。
 
 ## 0.2.0
 
