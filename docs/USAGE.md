@@ -1,259 +1,224 @@
 # SerialFlash 使用手册
 
-本手册说明 VS Code 插件的命令、设置、命名配置、任务和排查方法。
-安装与首次烧录见 [中文首页](../README.zh-CN.md)，电路与时序见 [CH340_HARDWARE.md](CH340_HARDWARE.md)。
+[English](USAGE.en.md)
 
-## 版本与运行环境
+本手册详细说明 STM32 Serial Flasher 扩展的操作界面、命令、配置项、Tasks 任务链与故障排查方法。
 
-扩展市场标识为 `totok22.serialflash-stm32`，已发布版本为 0.2.0。
-中英文面板和 CMake 编译器检查产物过滤属于未发布改动，详见 [CHANGELOG.md](../CHANGELOG.md)。
-面板按 VS Code 显示语言选择中英文：中文使用中文，其他语言使用英文。
-命令名称在下文统一按命令面板中的英文标题列出。
+基础安装与快速开始请参阅 [项目首页](../README.zh-CN.md)，硬件电路与控制线时序请参阅 [CH340 硬件说明](CH340_HARDWARE.md)。
 
-插件需要 VS Code Desktop 1.90 或更高版本，并在扩展宿主（Extension Host）中加载 Node `serialport`。
-安装包包含生产依赖，开发源码需要先安装依赖。USB-UART 驱动和设备访问权限由操作系统提供。
-macOS、Windows 和 Linux 是运行目标，不代表全部组合均已完成硬件验证。
+---
 
-Remote SSH、WSL 和 Dev Containers 中只能访问实际扩展宿主上的串口。
-用 `Run Diagnostics` 查看宿主、原生依赖和可见设备。`vscode.dev`、`github.dev` 不支持此插件的串口烧录。
-USB-C 接口需要连接 USB-UART 桥及指定 USART；STM32 原生 USB 下载不在本插件的串口流程内。
+## 1. 运行环境与交互入口
 
-## 界面与常用操作
+### 运行环境要求
+- **VS Code 版本**：VS Code Desktop 1.90 或更高版本。
+- **扩展宿主**：底层通信依赖 Node `serialport` 原生模块，在桌面扩展宿主中运行。
+- **远程开发注意**：在 Remote SSH、WSL 或 Dev Container 环境下，枚举和访问的串口归属于**运行扩展宿主的远端系统**。可通过 `SerialFlash: Run Diagnostics` 查看当前宿主环境与可见设备。
 
-Activity Bar 中的 SerialFlash 侧边栏显示当前固件、端口、复位模式、动作和最近历史。
-点击当前项可以重新选择；状态栏空闲时打开面板，烧录中打开 Output。
+### 交互入口
+- **Webview 面板**：点击侧边栏或执行 `SerialFlash: Open Flasher Panel` 打开。面板提供固件/串口选择、参数修改、高级操作折叠区及最近 18 行运行日志。
+- **Activity Bar 侧边栏**：显示当前目标固件、连接端口、复位模式、快捷动作及最近 8 条烧录历史记录。
+- **状态栏**：空闲时显示当前配置的串口，点击可快速打开面板；烧录过程中显示实时百分比进度。
+- **文件右键菜单**：在资源管理器或编辑器标签页中右键 `.hex` / `.bin` 文件，可直接触发烧录、校验或设为当前固件。
+- **全局快捷键**：
+  - macOS: `Cmd+Alt+F`
+  - Windows / Linux: `Ctrl+Alt+F`
 
-面板顶部显示固件、端口、复位模式和执行状态。
-参数、硬件复位、项目与自动化、维护操作放在折叠区域内。
-配置和维护按钮在烧录中禁用，取消、输出和诊断仍可用。
-面板日志显示最近 18 行，完整日志请打开 SerialFlash Output。
+---
 
-历史最多保存 20 条，侧边栏和面板显示最近 8 条。
-相同固件、端口和复位模式的新记录会替换旧记录。历史记录包含成功或失败状态，不代表所有尝试均会保留。
+## 2. 命令参考
 
-在资源管理器或编辑器标签页右键 `.hex`、`.bin`，可烧录、校验、设为当前固件或查看文件信息。
-默认烧录快捷键为 macOS `Cmd+Alt+F`、Windows/Linux `Ctrl+Alt+F`。
+通过 `Cmd/Ctrl+Shift+P` 打开命令面板，输入 `SerialFlash:` 即可过滤相关命令：
 
-## 命令参考
-
-按 `Cmd/Ctrl+Shift+P` 打开命令面板，输入 `SerialFlash:`。
-下表省略该前缀。
-
-| 命令 | 作用 |
+### 烧录与芯片控制
+| 命令 | 说明 |
 | --- | --- |
-| `Flash Latest Firmware` | 优先烧录已配置文件，否则自动发现或提示选择 |
-| `Flash Current File` | 将当前文件或右键文件设为固件，并烧录 |
-| `Select Firmware` | 从工作区候选中选文件，保存为当前固件 |
-| `Set as SerialFlash Firmware` | 将右键文件设为当前固件，不烧录 |
-| `Show Firmware Info` | 查看格式、字节数、文件基地址、修改时间和路径 |
-| `Select Serial Port` | 从枚举结果选择串口，显示厂家、序列号、VID/PID |
-| `Select Reset Mode` | 选择复位预设或自定义模式 |
-| `Open Flasher Panel` | 打开图形面板 |
-| `Reset To Bootloader` | 只发送控制线时序，不执行 Bootloader 握手验证 |
-| `Reset And Run` | 只发送复位运行时序，不验证应用程序是否运行 |
-| `Cancel Flash` | 请求取消当前烧录，等待流程检查点处理 |
-| `Show Output` | 打开完整日志 |
-| `Run Diagnostics` | 检查扩展宿主、`serialport` 加载和串口枚举 |
-| `Erase Chip` | 确认后连接 Bootloader，整片擦除 |
-| `Verify Firmware` | 连接 Bootloader，读回并比较当前或右键固件 |
-| `Unlock Read Protection` | 确认后发送解除读保护命令，会整片擦除 |
-| `Close Port` | 释放插件在成功烧录后保留的连接 |
-| `Clear Remembered Device` | 清除成功配置的全局记忆和当前端口设置，其他设置见下文 |
-| `Create Project Config` | 将当前状态合并写入首个工作区文件夹的 `.vscode/settings.json` |
-| `Create Tasks` | 合并生成首个工作区文件夹的 `.vscode/tasks.json` |
-| `Create Project Profile` | 保存当前烧录设置为命名配置，同名配置会替换 |
-| `Select Project Profile` | 将所选配置中的字段应用到当前设置 |
-| `Clear Flash History` | 清空历史记录 |
-| `Refresh` | 刷新侧边栏及面板状态 |
+| `Flash Latest Firmware` | 核心烧录命令。优先使用已配置/记忆固件，否则触发自动发现；随后执行擦除、写入、校验与复位运行 |
+| `Flash Current File` | 将当前活动编辑器或右键选中的 `.hex` / `.bin` 文件设为固件并立即烧录 |
+| `Cancel Flash` | 请求中断当前烧录流程（在传输检查点处安全停止） |
+| `Verify Firmware` | 连接 Bootloader，读回 Flash 内容并与当前固件逐字节比对 |
+| `Erase Chip` | 确认后连接 Bootloader 执行全片擦除 |
+| `Unlock Read Protection` | 确认后发送解除读保护指令（**注意：MCU 硬件会自动擦除全部 Flash 内容**） |
+| `Reset To Bootloader` | 仅驱动 DTR/RTS 进入 Bootloader 启动状态，不进行协议握手 |
+| `Reset And Run` | 仅驱动复位时序以重启并运行芯片内用户程序 |
+| `Close Port` | 手动释放当前占用的串口连接 |
 
-`Show Firmware Info` 中的基地址来自文件，不包含显式 `flashAddress` 覆盖。
-实际使用的地址以烧录 Output 中的 `Flash address` 为准。
-`Run Diagnostics` 不会连接 Bootloader，也不会读取 MCU 的版本和 PID；这些信息来自握手日志。
-
-取消在阶段之间检查，当前写入、读回或等待请求可能仍需完成或超时。
-取消不能恢复已擦除或写入的内容。
-
-## 固件选择与地址
-
-`Flash Latest Firmware` 先读取 `serialFlash.firmware`，为空时再使用成功烧录后记住的路径。
-只要该路径存在，就复用该文件，不比较其他产物的新旧。
-手动选择固件和成功烧录都可能将固件路径写入设置。
-更换构建目标时，应重新选择文件或修改配置。
-
-已配置固件不存在时，若 `autoDiscoverFirmware` 为 `true`，插件扫描工作区：
-
-1. 按 `firmwareGlobs` 查找文件，用 `excludeGlobs` 排除路径并去重。
-2. 只保留 `.hex` 和 `.bin`，排除 `CMakeFiles` 目录中的编译器检查产物。
-3. 根据修改时间、HEX/BIN 格式、`build`/`debug`/`release` 路径、`cmake-build-` 目录名、工作区名称匹配和记忆路径评分。小于 1,024 字节的 BIN 降低评分。
-4. 只有一个候选或首位领先至少 35 分时自动选择，否则打开候选列表。
-
-这套评分不能判断文件是否适合你的板卡。首次烧录前请核对候选名称、格式和地址。
-`CMakeFiles` 过滤仅作用于自动发现；已明确配置的现有路径仍有优先权。
-关闭 `autoDiscoverFirmware` 后，仍可运行 `Select Firmware` 手动挑选。
-
-| 文件格式 | 地址规则 |
+### 固件管理
+| 命令 | 说明 |
 | --- | --- |
-| `.hex` | 未显式配置地址时，使用 Intel HEX 中最低的数据地址 |
-| `.bin` | 未显式配置地址时，使用 `0x08000000` |
-| 任一格式 | 显式 `serialFlash.flashAddress` 覆盖文件基地址或 BIN 默认地址 |
+| `Select Firmware` | 扫描工作区固件候选，通过 Quick Pick 选择并保存为当前固件 |
+| `Set as SerialFlash Firmware` | 将资源管理器或编辑器中右键选中的文件设为当前固件（不立即烧录） |
+| `Show Firmware Info` | 查看当前文件的格式、字节大小、文件内基地址、修改时间与绝对路径 |
 
-HEX 会校验记录长度、校验和和 EOF，并将地址间隙填为 `0xFF`。
-有引导程序或偏移应用区时，请核对链接地址与写入地址。
-插件不直接提供 ELF 烧录入口，需由构建系统导出 `.hex` 或 `.bin`。
+### 设备与模式配置
+| 命令 | 说明 |
+| --- | --- |
+| `Select Serial Port` | 重新枚举系统可用串口并进行选择（展示厂商、VID/PID 及序列号） |
+| `Select Reset Mode` | 选择复位预设（CH340C / CH340X / 手动 / 自定义映射） |
+| `Open Flasher Panel` | 打开图形化烧录控制面板 |
+| `Show Output` | 打开 VS Code 专用的 SerialFlash 输出日志通道 |
+| `Run Diagnostics` | 检查扩展宿主运行平台、`serialport` 加载状态及串口枚举详情 |
 
-相对路径以首个工作区文件夹为基准；也可使用绝对路径。
-多根工作区可扫描多个文件夹，但配置文件生成和相对路径解析以首个文件夹为准。
-需要稳定区分目标时，使用明确的固件路径或命名配置。
+### 项目与历史管理
+| 命令 | 说明 |
+| --- | --- |
+| `Create Project Config` | 将当前面板参数合并写入工作区根目录的 `.vscode/settings.json` |
+| `Create Tasks` | 在工作区根目录下生成或合并标准 `.vscode/tasks.json` 烧录任务 |
+| `Create Project Profile` | 将当前配置保存为一个命名 Profile（多项目/多板卡切换） |
+| `Select Project Profile` | 选择已保存的 Profile，将其参数应用到当前环境 |
+| `Clear Remembered Device` | 清除成功烧录后全局保存的串口、固件路径与波特率记忆 |
+| `Clear Flash History` | 清空历史烧录记录列表 |
+| `Refresh` | 手动刷新侧边栏与面板状态 |
 
-## 设置参考
+---
 
-所有键均以 `serialFlash.` 开头。下表省略前缀。
-设置可在 VS Code 用户或工作区设置中修改，主要烧录参数也可在面板内修改。
+## 3. 固件发现与地址判定
 
-| 设置 | 默认值 | 说明 |
+### 检索与选择优先级
+1. **显式配置优先**：若 `serialFlash.firmware` 或上次成功烧录记忆的文件路径存在，优先使用该文件。
+2. **自动检索**：若未指定文件或文件不存在，且开启了 `serialFlash.autoDiscoverFirmware`（默认开启）：
+   - 根据 `firmwareGlobs` 在工作区内搜索 `.hex` 与 `.bin`；
+   - 依据 `excludeGlobs` 排除匹配目录（如 `node_modules`、`.git`、`dist` 等）；
+   - **自动过滤**：构建系统的内部测试产物（如 `CMakeFiles/` 下的编译器检查探测文件）会被自动忽略；
+   - 综合修改时间、文件类型与构建路径进行优选；若只有一个最佳候选则自动选中，多候选时弹出 Quick Pick 供用户选择。
+
+### Flash 地址判定规则
+| 固件格式 | 默认地址 | 说明 |
 | --- | --- | --- |
-| `firmware` | `""` | 相对或绝对固件路径，空值回退到成功记忆 |
-| `port` | `""` | 如 `/dev/tty.usbserial-10`、`COM3`，空值回退到成功记忆 |
-| `baudRate` | `115200` | 串口波特率 |
-| `parity` | `"even"` | `even` 或 `none`；数据位 8、停止位 1 固定 |
-| `resetMode` | `"dtr-low-rts-high"` | 按实际电路选择，见下一节 |
-| `customReset.boot0High` | `"dtr-false"` | 自定义模式下建立 BOOT 条件的控制线状态 |
-| `customReset.boot0Low` | `""` | 空值表示与 `boot0High` 相反 |
-| `customReset.resetAssert` | `"rts-true"` | 自定义模式下触发复位的控制线状态 |
-| `flashAddress` | 自动判定，见说明 | 显式地址覆盖 HEX/BIN 自动地址 |
-| `packetSize` | `256` | 包大小，允许 1～256 字节；通常保持默认值 |
-| `timeout` | `2000` | 普通串口读取超时，单位为 ms |
-| `eraseBeforeWrite` | `true` | 写入前整片擦除 |
-| `verifyAfterWrite` | `true` | 写入后读回比较 |
-| `runAfterWrite` | `true` | 成功后发送复位运行时序 |
-| `closePortAfterWrite` | `true` | 成功后关闭连接 |
-| `unlockReadProtection` | `false` | 擦除收到 NACK 时尝试解除读保护，会整片擦除 |
-| `autoDiscoverFirmware` | `true` | 已配置固件不存在时自动查找 |
-| `firmwareGlobs` | `["**/*.hex", "**/*.bin"]` | 自动发现包含范围 |
-| `excludeGlobs` | `["**/{node_modules,.git,dist}/**"]` | 自动发现排除范围 |
-| `projects` | `[]` | 命名配置数组，见后文 |
+| Intel HEX (`.hex`) | 文件内基地址 | 自动解析 HEX 头部中的扩展线性地址记录（如 `0x08000000`） |
+| 原始二进制 (`.bin`) | `0x08000000` | BIN 文件不含地址元数据，采用 STM32 片内 Flash 默认基地址 |
 
-manifest 将 `flashAddress` 的显示默认值声明为 `0x08000000`。
-运行时会检查用户、工作区和文件夹是否显式设置地址；均未设置时，HEX 使用文件地址。
-面板地址留空同样恢复自动地址，BIN 仍默认 `0x08000000`。
-地址可写成十六进制字符串或十进制字符串。
+> [!TIP]
+> 若应用程序设计了 Bootloader 偏移（例如中断向量表偏移到 `0x08008000`），可通过在设置中显式指定 `serialFlash.flashAddress` 覆盖默认地址。
 
-`timeout` 不改变复位时序中的固定等待时间。
-整片擦除 ACK 另有 60 秒等待，解除读保护的后续 ACK 等待为 15 秒。
-只有确认 MCU 和电路要求后才调整参数。
+---
 
-关闭 `closePortAfterWrite` 会让成功连接由插件继续持有，并不会自动接入串口终端。
-其他串口工具使用前请执行 `Close Port`。烧录流程失败时，即使该选项关闭也会释放连接。
-`none` 模式不发送硬件复位，因此 `runAfterWrite` 不能替你手动复位板卡。
+## 4. 设置项说明
 
-以下设置适用于工作区根目录下有 `build/Debug/app.hex` 的示例工程：
+所有配置项均以 `serialFlash.` 为前缀。可在 VS Code 用户设置、工作区设置或通过烧录面板进行修改。
 
+| 配置项 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `firmware` | `string` | `""` | 目标固件路径（支持相对工作区的相对路径或绝对路径） |
+| `port` | `string` | `""` | 串口路径（如 `/dev/tty.usbserial-10`、`COM3`） |
+| `baudRate` | `number` | `115200` | 串口波特率 |
+| `parity` | `string` | `"even"` | 校验位（STM32 ROM Bootloader 协议固定要求 `"even"`） |
+| `resetMode` | `string` | `"dtr-low-rts-high"` | 自动复位模式预设，可选值见下文 |
+| `customReset.boot0High` | `string` | `"dtr-false"` | 自定义模式下触发进入 Bootloader 的控制线状态 |
+| `customReset.boot0Low` | `string` | `""` | 自定义模式下恢复正常运行的控制线状态（留空表示反转） |
+| `customReset.resetAssert` | `string` | `"rts-true"` | 自定义模式下触发芯片复位的控制线状态 |
+| `flashAddress` | `string` | `""` | 显式烧录基地址（留空使用 HEX 内部地址或 BIN 默认地址） |
+| `packetSize` | `number` | `256` | 写入数据包大小（1~256 字节，协议上限 256） |
+| `timeout` | `number` | `2000` | 常规串口操作超时（毫秒） |
+| `eraseBeforeWrite` | `boolean` | `true` | 写入前执行全片擦除 |
+| `verifyAfterWrite` | `boolean` | `true` | 写入后读回校验 |
+| `runAfterWrite` | `boolean` | `true` | 写入并校验成功后发送复位时序运行程序 |
+| `closePortAfterWrite` | `boolean` | `true` | 流程结束后关闭串口（防止 DTR/RTS 持续影响板卡运行） |
+| `unlockReadProtection` | `boolean` | `false` | 擦除遇 NACK 时尝试解除读保护（**会清空整片 Flash**） |
+| `autoDiscoverFirmware` | `boolean` | `true` | 是否在未指定固件时自动检索工作区 |
+| `firmwareGlobs` | `array` | `["**/*.hex", "**/*.bin"]` | 固件检索匹配模式列表 |
+| `excludeGlobs` | `array` | `["**/{node_modules,.git,dist}/**"]` | 固件检索排除路径规则 |
+| `projects` | `array` | `[]` | 命名 Profile 配置列表 |
+
+### 典型工作区配置示例 (`.vscode/settings.json`)
 ```json
 {
   "serialFlash.firmware": "build/Debug/app.hex",
   "serialFlash.port": "/dev/tty.usbserial-10",
   "serialFlash.resetMode": "dtr-low-rts-high",
   "serialFlash.baudRate": 115200,
-  "serialFlash.parity": "even",
-  "serialFlash.firmwareGlobs": ["build/**/*.hex", "build/**/*.bin"],
-  "serialFlash.excludeGlobs": ["**/{node_modules,.git,dist}/**"]
+  "serialFlash.eraseBeforeWrite": true,
+  "serialFlash.verifyAfterWrite": true,
+  "serialFlash.runAfterWrite": true
 }
 ```
 
-按实际系统修改端口。此例未固定地址，因此 HEX 保留文件基地址。
+---
 
-## 复位模式
+## 5. 复位模式与控制线约定
 
-| 模式 | 适用方式 |
-| --- | --- |
-| `dtr-low-rts-high` | 图示 CH340C 经典自动下载电路，插件默认 |
-| `ch340x` | 历史实测 CH340X 板卡的预设，需核对实际控制线映射 |
-| `dtr-high-rts-low` | 通用 DTR 高电平复位、RTS 低电平 BOOT 预设 |
-| `none` | 用户手动满足启动条件并复位，插件不驱动控制线 |
-| `custom` | 按实际电路自定义映射 |
+### 电平极性约定
+项目内部定义：
+- `true`：**低电平**（Assert / 导通）
+- `false`：**高电平**（Deassert / 截止）
 
-项目内部约定 `true` 为低电平，`false` 为高电平。
-`src/node-serial-transport.js` 负责取反为 Node `serialport` 语义，配置时不要再次取反。
-可选状态为 `dtr-true`、`dtr-false`、`rts-true` 和 `rts-false`。
-这些值描述桥接控制线状态，板上三极管可能再次改变 MCU 引脚电平。
+> [!NOTE]
+> Node `serialport` 原生库的布尔语义相反，适配层 `src/node-serial-transport.js` 会自动处理反转，用户配置时无需额外计算。
 
+### 模式列表
+| 模式标识 | 预设含义 | 适用硬件拓扑 |
+| --- | --- | --- |
+| `dtr-low-rts-high` | DTR 低电平拉复位，RTS 高电平拉 BOOT | 采用经典 NPN/PNP 双三极管的 CH340C/CH340G 下载电路 |
+| `ch340x` | 专用 RTS/DTR 脉冲时序 | CH340X 直连电路（RTS# 接 NRST，增强 DTR 接 BOOT0） |
+| `dtr-high-rts-low` | DTR 高电平复位，RTS 低电平 BOOT | 部分反向逻辑或光耦隔离的自动下载模块 |
+| `none` | 扩展不操作控制线 | 手动按板上 BOOT 键并按复位键，纯串口数据烧录 |
+| `custom` | 允许用户指定控制线映射 | 特殊或自定义自动下载电路 |
+
+### 自定义复位配置示例
 ```json
 {
   "serialFlash.resetMode": "custom",
   "serialFlash.customReset.boot0High": "dtr-false",
-  "serialFlash.customReset.boot0Low": "",
+  "serialFlash.customReset.boot0Low": "dtr-true",
   "serialFlash.customReset.resetAssert": "rts-true"
 }
 ```
 
-此例仅展示配置格式，不能作为任意板卡的通用接法。
-CH340X 参考图用 RTS# 接 RESET、增强 DTR# 接 BOOT0，与现有预设历史描述中的控制线名称有差异。
-不要直接按芯片型号套用；请先核对实际拓扑和引脚电平，详见硬件说明。
-各 STM32 的启动条件和 USART 引脚以
-[ST AN2606](https://www.st.com/resource/en/application_note/an2606-stm32-microcontroller-system-memory-boot-mode-stmicroelectronics.pdf)
-中对应型号为准。电路、固定等待和历史 CLI 记录见 [CH340_HARDWARE.md](CH340_HARDWARE.md)。
+---
 
-## 配置文件与记忆
+## 6. Profile 命名配置管理
 
-`Create Project Config` 要求已打开文件夹，将当前烧录状态合并到首个文件夹的 `.vscode/settings.json`。
-已有其他设置值会保留，同名 SerialFlash 设置更新为当前值。
-读取支持注释和尾逗号，写回采用格式化 JSON，因此原注释和排版不会保留。
-此命令写入发现范围，但不会导出 `serialFlash.projects` 数组。
+对于需要维护多款开发板或区分 Debug/Release 固件的工程，可使用 Profile 机制。
 
-面板编辑或选择操作有工作区时写入工作区设置，没有工作区时写入用户设置。
-成功烧录会更新全局记忆，并将固件路径和复位模式写入设置。
-全局记忆可能跨工作区复用；显式设置和所选目标仍需核对。
-
-`Clear Remembered Device` 清除全局保存的端口、固件、复位模式和波特率，并移除当前层级的端口设置。
-该命令不清除显式固件、复位模式、波特率或命名配置，也不关闭连接。
-如需恢复自动发现，请另外清空 `serialFlash.firmware`；如需释放连接，请执行 `Close Port`。
-
-## 命名配置
-
-用 `Create Project Profile` 保存当前状态，输入名称；同名配置会替换。
-用 `Select Project Profile` 将配置中的字段应用到当前设置。
-手写的部分配置只覆盖列出的字段，未列出的值继续沿用。
-自动发现开关和 globs 不属于命名配置的应用字段。
+执行 `SerialFlash: Create Project Profile`，输入配置名称（如 `board-f103-debug`），扩展将把当前配置写入 `.vscode/settings.json` 的 `serialFlash.projects` 数组：
 
 ```json
 {
   "serialFlash.projects": [
     {
-      "name": "can2rs485-debug",
-      "firmware": "build/Debug/CAN2RS485.hex",
+      "name": "board-f103-debug",
+      "firmware": "build/Debug/app.hex",
       "port": "/dev/tty.usbserial-10",
+      "resetMode": "dtr-low-rts-high",
+      "flashAddress": "0x08000000",
+      "baudRate": 115200
+    },
+    {
+      "name": "board-f407-release",
+      "firmware": "build/Release/firmware.bin",
+      "port": "/dev/tty.usbserial-20",
       "resetMode": "ch340x",
-      "flashAddress": "",
-      "baudRate": 115200,
-      "parity": "even",
-      "eraseBeforeWrite": true,
-      "verifyAfterWrite": true,
-      "runAfterWrite": true,
-      "closePortAfterWrite": true,
-      "unlockReadProtection": false
+      "flashAddress": "0x08000000",
+      "baudRate": 115200
     }
   ]
 }
 ```
 
-`flashAddress` 留空可在切换配置时清除旧的显式地址，恢复 HEX/BIN 自动地址。
-端口路径取决于运行扩展宿主的系统；多人共用配置前请检查设备差异。
+切换时执行 `SerialFlash: Select Project Profile`，选中项的参数将自动覆盖工作区当前设置。
 
-## VS Code 任务
+---
 
-`Create Tasks` 在首个工作区文件夹生成 3 个 `serialFlash` 类型任务。
-合法 `action` 为 `flashLatest`、`bootloader` 和 `run`。
-命令会保留其他任务，并替换与生成任务同名的条目。
-读取支持 JSON 注释和尾逗号，写回会移除注释并重排格式。
-任务使用当前设置，不会自动编译固件。
+## 7. VS Code Tasks 自动化集成
 
-已有 `Build firmware` 任务时，可按下面的方式顺序执行构建和烧录。
-先把该名称替换为你的实际构建任务标签，并保留原任务定义：
+执行命令 `SerialFlash: Create Tasks` 可自动在工程目录下创建 `.vscode/tasks.json`。支持的任务动作（`action`）：
+- `flashLatest`：执行烧录最新固件
+- `bootloader`：仅复位进入 Bootloader
+- `run`：仅复位运行用户程序
+
+### 串联编译与烧录任务
+可将 SerialFlash 任务配置为依赖项，按顺序执行编译与烧录：
 
 ```json
 {
   "version": "2.0.0",
   "tasks": [
+    {
+      "label": "Build Firmware",
+      "type": "shell",
+      "command": "ninja -C build",
+      "problemMatcher": []
+    },
     {
       "label": "SerialFlash: Flash Latest Firmware",
       "type": "serialFlash",
@@ -261,45 +226,31 @@ CH340X 参考图用 RTS# 接 RESET、增强 DTR# 接 BOOT0，与现有预设历�
       "problemMatcher": []
     },
     {
-      "label": "Build and flash",
+      "label": "Build & Flash",
       "dependsOrder": "sequence",
-      "dependsOn": ["Build firmware", "SerialFlash: Flash Latest Firmware"],
+      "dependsOn": [
+        "Build Firmware",
+        "SerialFlash: Flash Latest Firmware"
+      ],
       "problemMatcher": []
     }
   ]
 }
 ```
 
-任务仍遵循已配置固件优先规则。构建任务应生成该文件，或用命名配置明确目标。
-以 SerialFlash Output 的写入、校验结果判断是否成功，不能仅凭任务终端结束判断硬件状态。
+---
 
-## 故障排查
+## 8. 故障排查
 
-先运行 `Show Output` 读取完整日志，再用 `Run Diagnostics` 核对扩展宿主、依赖和端口。
-保存的端口名称不代表设备当前已连接；只看到蓝牙或调试端口时，应先检查 USB 数据线、驱动和板卡连接。
+遇到问题时，请先执行 `SerialFlash: Show Output` 查看完整通信日志，或执行 `SerialFlash: Run Diagnostics` 检查串口识别状态。
 
-| 现象 | 检查方法 |
-| --- | --- |
-| 找不到固件 | 先构建，确认导出 `.hex`/`.bin`，检查工作区和 globs；CMake 编译器检查产物不会作为候选 |
-| 烧录了旧文件 | 查看 `serialFlash.firmware` 和记忆路径，重新选择正确目标；“Latest”不代表只按时间选文件 |
-| 串口占用或拒绝访问 | 关闭串口监视器和其他下载工具；插件持有连接时执行 `Close Port` |
-| `EACCES` 或 `EPERM` | 检查设备权限和用户组；Linux 按发行版配置串口设备访问权限 |
-| 收不到 Bootloader ACK | 按具体 MCU 核对 USART 引脚、BOOT 条件、NRST、电路预设和默认 `115200 8E1` |
-| 持续收到用户程序输出 | 先用 `none` 配合手动启动确认 ROM Bootloader 可达，再排查自动复位电路 |
-| 返回 NACK | 检查命令支持、读保护、地址和擦除状态，不要直接开启解除读保护 |
-| 校验失败 | 核对固件目标、链接地址、显式写入地址和擦除选项，保存第一个不匹配地址 |
-| HEX 解析失败 | 检查构建导出、校验和、记录长度和 EOF，确认文件完整 |
-| `serialport` 加载失败 | 检查宿主平台和架构；源码运行先安装依赖，安装版可重装适配的 VSIX，再运行诊断 |
-| Remote 中找不到本机串口 | 核对扩展实际运行位置，确保设备对该宿主可见 |
-| 写入后程序没有运行 | 检查 BOOT 条件是否退出、NRST 时序和应用固件；`none` 需要手动复位 |
-
-同步逻辑会忽略 ACK 前的噪声字节，但不能替代正确进入 Bootloader。
-若全片擦除耗时较长，协议层会等待最多 60 秒，普通 `timeout` 不控制这段等待。
-
-`Erase Chip` 和 `Unlock Read Protection` 有独立确认。
-常规烧录默认也会整片擦除；自动解除读保护开关仅在擦除返回 NACK 时启用补救流程。
-解除读保护会清空芯片内容，且是否允许解除取决于 MCU 当前保护状态。
-
-反馈问题时请提供系统、VS Code 与插件版本、扩展宿主、板卡、MCU、桥接芯片、复位模式和固件格式。
-诊断报告只包含主机与串口信息；握手成功后再从 Output 补充 Bootloader 版本、PID 和首个失败阶段。
-实机结果按 [HARDWARE_VALIDATION.md](HARDWARE_VALIDATION.md) 记录，历史 CLI 成功记录不能替代当前插件测试。
+| 故障现象 | 常见原因 | 排查建议 |
+| --- | --- | --- |
+| **找不到固件** | 尚未编译或产物不在工作区 | 检查编译输出目录，确认生成了 `.hex` 或 `.bin`；检查 `firmwareGlobs` 设置 |
+| **串口占用 / EACCES** | 其他串口终端或监视器占用了端口 | 关闭其他串口助手；在 Linux 下确认当前用户已加入 `dialout` 或 `uucp` 用户组 |
+| **收不到 Bootloader ACK (`0x7F` 超时)** | 芯片未成功进入 Bootloader 状态 | 1. 核对硬件原理图引脚与复位模式预设；<br>2. 临时改用 `none` 模式，手动按住 BOOT0 键复位上电，以确认串口接线正常；<br>3. 检查串口 TX/RX 是否反接，是否共地 |
+| **持续收到乱码或应用数据** | 复位时序未生效，芯片仍运行原有程序 | 检查自动复位电路三极管/MOS管工作状态，核对 DTR/RTS 信号波形 |
+| **返回 NACK (`0x1F`)** | 目标命令不被芯片支持，或处于读保护状态 | 1. 检查目标型号在 [AN2606](https://www.st.com/resource/en/application_note/an2606-stm32-microcontroller-system-memory-boot-mode-stmicroelectronics.pdf) 中的协议说明；<br>2. 若开启了读保护，可执行 `Unlock Read Protection`（注意将清空 Flash） |
+| **校验失败 (Verify mismatch)** | 写入地址错误或擦除未完成 | 核对链接脚本中的 Flash 起始地址；确认 `eraseBeforeWrite` 为开启状态 |
+| **写入完成后程序不运行** | BOOT0 仍被拉高，或未退出复位 | 检查 `closePortAfterWrite` 是否开启；CH340X 直连电路在端口保持开启时可能持续拉低 NRST |
+| **Remote 模式下找不到本地串口** | 扩展运行在远程主机，无法枚举本地设备 | 确认 USB 转串口插入的物理机器与 VS Code 扩展宿主一致 |

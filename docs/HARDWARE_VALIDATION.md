@@ -1,81 +1,67 @@
-# VS Code 插件硬件验证记录模板
+# VS Code 插件硬件验证规范与记录模板
 
-每次实机验证都按此模板记录，避免只留下“能烧”的口头结论。
+本文件用于规范目标板在真实硬件环境下的烧录验证流程，统一记录环境参数与测试结果。
 
-## 当前验证范围
+---
 
-下表是历史 CLI 记录，不是当前 VS Code 插件的实机测试结果。本次文档和图片更新没有连接硬件。原始记录和接线参考见 [CH340 硬件说明](CH340_HARDWARE.md)。
+## 1. 验证目标与测试状态
 
-| 日期 | 历史验证对象 | 已记录结果 | 当前 VS Code 插件状态 |
-| --- | --- | --- | --- |
-| 2026-06-01 | CH340C 经典电路，STM32F10xxx Medium-density，Bootloader `0x22`，PID `0x0410` | CLI 擦除、烧录和校验完成；入口另用 `stm32flash` 验证 | 待实机回归 |
-| 2026-06-05 | CH340X CAN2RS485 板，macOS `/dev/tty.usbserial-10`，Bootloader `0x31`，PID `0x0413` | CLI 擦除、写入和读回校验完成 | 待实机回归 |
+在提交涉及复位时序、串口传输、协议握手或扩展宿主环境的关键变更时，须按此规范在真实硬件上执行回归测试。
 
-历史 CH340X 记录的“RTS BOOT / DTR RESET”命名与 WCH 参考图的引脚映射不同。回归时记录芯片脚号、板上网络和实际电平，不要仅凭芯片型号判断预设。
+### 历史测试与待回归清单
+| 硬件环境 | MCU 型号 / Bootloader | 串口芯片及电路 | 测试状态 | 说明 |
+| --- | --- | --- | --- | --- |
+| macOS 14+ | STM32F103 (MD, PID `0x0410`, BL `0x22`) | CH340C 经典外围电路 | 待插件回归 | 历史 CLI 测试通过；待插件环境实测 |
+| macOS 14+ | STM32F103 (CAN2RS485 板, PID `0x0413`, BL `0x31`) | CH340X 直连电路 | 待插件回归 | 历史 CLI 测试通过；待插件环境实测 |
+| Windows 11 | STM32F1 / F4 系列 | CH340 自动下载板 | 待回归 | 验证 Windows COM 端口与驱动表现 |
+| Linux (Ubuntu) | STM32 系列 | CH340 / CP2102 | 待回归 | 验证 `/dev/ttyUSB*` 设备权限与枚举 |
 
-## 环境
+---
 
-- 日期：
-- OS：
-- VS Code 版本：
-- 插件版本：
-- 运行环境：VS Code Desktop 本地 / Remote SSH / WSL / Dev Container
-- 串口芯片：
-- 端口：
-- 板卡：
-- MCU：
-- ROM Bootloader 支持的 USART / TX / RX 引脚（核对 AN2606）：
-- 串口 I/O 电压 / MCU 电压 / 共地：
-- USB 接口实际连接：USB 转串口 / MCU 原生 USB / 仅供电
-- DTR/RTS 芯片脚号 → 板上网络 → BOOT / NRST 的映射与有效电平：
-- BOOT 上下拉 / BOOT1 / 启动选项字节：
-- 目标板供电方式：
-- 固件路径：
-- 固件格式：HEX / BIN
-- reset mode：
-- custom reset mapping（如适用）：
-- baud/parity/timeout：
-- flash address：
-- erase / verify / run / close：
+## 2. 硬件测试记录模板
 
-## 操作
+每次硬件验证应完整记录以下信息：
 
-1. 打开包含固件的工作区。
-2. 执行 `SerialFlash: Select Serial Port`。
-3. 执行 `SerialFlash: Select Reset Mode`。
-4. 执行 `SerialFlash: Flash Latest Firmware` 或在面板点击 `Flash`。
-5. 保存 Output Channel 日志中的关键信息。
+### 测试环境
+- **日期**：
+- **测试人员**：
+- **操作系统与版本**：
+- **VS Code 版本**：
+- **插件版本**：
+- **宿主类型**：Local Desktop / Remote SSH / WSL / Dev Container
+- **开发板 / 目标板型号**：
+- **MCU 具体型号与封装**：
+- **串口芯片与接口**：
+- **串口端口号**（如 `/dev/tty.usbserial-10`、`COM3`）：
+- **自动复位模式**（`dtr-low-rts-high` / `ch340x` / `custom`）：
 
-## 结果
+### 烧录配置
+- **固件路径及格式**：`.hex` / `.bin`
+- **固件大小 (Bytes)**：
+- **波特率 / 校验位**：默认 `115200 8E1`
+- **Flash 基地址**：
+- **执行选项**：Erase [`x`] / Verify [`x`] / Run [`x`] / ClosePort [`x`]
 
-- Bootloader version：
-- PID：
-- 擦除结果：
-- 写入结果：
-- 校验结果：
-- 运行结果：
-- 串口是否释放：
-- 是否出现同步噪声忽略日志：
-- 失败时下一步排查：
+### 验证步骤与结果
+1. 执行 `SerialFlash: Run Diagnostics`，确认宿主环境与串口可见；
+2. 执行 `SerialFlash: Flash Latest Firmware`（或在面板点击 Flash）；
+3. 检查 Output 日志并确认以下指标：
+   - [ ] 芯片成功进入 Bootloader，读取到 Bootloader 版本与芯片 PID；
+   - [ ] Flash 擦除成功完成；
+   - [ ] 固件分包写入成功；
+   - [ ] 读回逐字节校验通过；
+   - [ ] 自动复位生效，开发板成功运行新固件；
+   - [ ] 串口按预期释放，无端口占用残留。
 
-## 必测矩阵
-
-- macOS + CH340C 经典电路。
-- macOS + CH340X 直连电路。
-- Windows + CH340。
-- Linux + `/dev/ttyUSB*` 或 `/dev/ttyACM*`。
-
-## 日志格式示例
-
-以下日志仅演示记录格式，不是新增实机验证记录。
-
+### 日志输出样例
 ```text
-[SerialFlash] Firmware: build/Debug/CAN2RS485.hex, HEX, 65536 bytes
+[SerialFlash] Firmware: build/Debug/app.hex, HEX, 65536 bytes
 [SerialFlash] Port: /dev/tty.usbserial-10 @ 115200 8E1
-[SerialFlash] Reset: ch340x
+[SerialFlash] Reset: dtr-low-rts-high
 [SerialFlash] Entering bootloader via DTR/RTS
 [SerialFlash] Bootloader 0x31, PID 0x0413
 [SerialFlash] Erase complete (extended)
+[SerialFlash] Write 65536 bytes complete
 [SerialFlash] Verify complete
 [SerialFlash] Reset and run
 [SerialFlash] Done

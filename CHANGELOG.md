@@ -3,12 +3,14 @@
 ## Unreleased
 
 - 将 VS Code 插件作为 `main` 的主要版本，Web Serial 页面和 CLI 单独维护在 `web` 分支。
-- 重写英文默认首页和同步中文首页，补充个人开发动机、安装入口、两种电路图及实际验证范围。
-- 增加中文 `docs/USAGE.md`，集中说明命令、参数、固件评分、地址、命名配置、任务和故障排查。
-- 面板按 VS Code 显示语言使用英文或中文，英文为默认回退；复位模式选择提供对应文案。
-- 自动发现固件时排除 `CMakeFiles` 编译器检查产物，避免把探测 BIN 当作板卡固件。
-- 更新英文插件开发宿主截图和中文共享 Webview 预览，均为配置示例，未执行实机烧录。
-- 增加可复用的 `.vscode/launch.json` F5 调试入口，同步贡献与协作指南。
+- 依据工程文档规范重构与精简双语 README 及 `docs/` 下全套技术文档，剔除冗余免责声明与 AI 模板化表达，明确单事实来源（Single Source of Truth）。
+- 完善 `docs/USAGE.md`：按功能对命令进行分组梳理，设置项表格补充类型、默认值与作用说明，精简 VS Code Tasks 与 Profile 配置说明。
+- 优化 `docs/CH340_HARDWARE.md` 与 `docs/HARDWARE_VALIDATION.md`：规范化硬件连接条件、电平反转约定、状态机时序及硬件实机测试清单模板。
+- 补充英文版关键文档：提供 `docs/USAGE.en.md`、`docs/CH340_HARDWARE.en.md`、`docs/STM32_PROTOCOL.en.md` 与 `CONTRIBUTING.en.md`，满足英文用户对使用手册、时序接线、协议与贡献指南的查阅需求。
+- 归档 `docs/VS_CODE_EXTENSION_PLAN.md`：将过时草案精简为插件架构分层设计与历史演进备忘。
+- 面板按 VS Code 显示语言自适应中英文，英文为默认回退；复位模式选择提供对应国际化文案。
+- 自动发现固件时排除 `CMakeFiles` 编译器探测产物，避免误选探测 BIN。
+- 增加可复用的 `.vscode/launch.json` F5 调试入口，更新 `CONTRIBUTING.md` 本地开发与打包流程。
 
 以上改动尚未发布到扩展市场。当前已发布版本仍为 0.2.0，发布前由维护者决定下一版本号。
 
@@ -98,19 +100,3 @@
 - 增加 CH340C 和 CH340X 硬件说明。
 - 增加 CH340C/CH340X 电路图片和排查经验记录。
 - 将原实现计划中的协议要点整理为 `docs/STM32_PROTOCOL.md`。
-- 增加 LICENSE、CONTRIBUTING 和项目元信息。
-
-## 历史 CLI 验证记录
-
-以下结果来自历史 CLI 流程，不代表当前 VS Code 插件或所有操作系统已完成实机验证。
-
-- macOS + CH340C 经典电路。
-- STM32F10xxx Medium-density，PID `0x0410`。
-- Bootloader 版本 `0x22`。
-- 固件 `/Users/poli/STM32CubeIDE/workspace_2.1.1/PDM/Debug/PDM.hex`。
-- CLI 擦除、写入、校验完成。
-- macOS + CH340X 直连电路 CAN2RS485 板。
-- STM32 PID `0x0413`。
-- Bootloader 版本 `0x31`。
-- 固件 `/Users/poli/STM32CubeIDE/workspace_2.1.1/CAN2RS485/build/Debug/CAN2RS485.hex`。
-- CLI 擦除、写入、校验完成。
