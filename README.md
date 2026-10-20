@@ -1,4 +1,4 @@
-# SerialFlash
+# SerialFlash Web + CLI
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -10,12 +10,12 @@ A browser-based STM32 flashing tool using Web Serial and the STM32 USART Bootloa
 
 ## Which Version Do You Need?
 
-This project has **two branches** for different workflows:
+The VS Code extension is the primary project on `main`. This `web` branch preserves the browser and CLI workflows:
 
 | Branch | Description | Best For |
 | ------ | ----------- | -------- |
-| [`main`](https://github.com/totok22/SerialFlash/tree/main) (you are here) | **Web Serial + CLI** — open a browser tab or use the terminal | Quick flashing without VS Code; CI/automation; any platform with a browser |
-| [`vscode-extension`](https://github.com/totok22/SerialFlash/tree/vscode-extension) | **VS Code extension** — install from marketplace, flash from the editor | VS Code users who want an integrated, one-click workflow |
+| [`web`](https://github.com/totok22/SerialFlash/tree/web) (you are here) | **Web Serial + CLI** — open a browser tab or use the terminal | Quick flashing without VS Code; CI/automation; any platform with a browser |
+| [`main`](https://github.com/totok22/SerialFlash/tree/main) | **VS Code extension** — install from marketplace, flash from the editor | VS Code users who want an integrated, one-click workflow |
 
 Both branches share the same STM32 UART ISP core, DTR/RTS reset presets, and firmware parsing logic. Pick the one that fits your setup.
 
@@ -44,9 +44,11 @@ Web Serial requires **Chrome or Edge** (or any Chromium-based browser) and must 
 
 ### Quick Start
 
-Start a local server:
+Clone this branch and start a local server:
 
 ```bash
+git clone --branch web https://github.com/totok22/SerialFlash.git
+cd SerialFlash
 python3 -m http.server 8080
 ```
 

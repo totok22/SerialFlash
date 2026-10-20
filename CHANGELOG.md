@@ -1,5 +1,10 @@
 # 变更记录
 
+## Unreleased
+
+- 将 Web Serial 和 CLI 保留在 `web` 分支，`main` 改为 VS Code 插件入口。
+- 更新双语 README 的分支链接与克隆命令。
+
 ## v0.1.0 - 2026-06-07
 
 首个公开版本。

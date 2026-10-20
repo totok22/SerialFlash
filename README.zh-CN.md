@@ -1,4 +1,4 @@
-# SerialFlash
+# SerialFlash Web + CLI
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -10,12 +10,12 @@
 
 ## 该选哪个分支？
 
-本项目有**两个分支**，分别适配不同场景：
+VS Code 插件是 `main` 上的主要版本。当前 `web` 分支保留浏览器和 CLI 用法：
 
 | 分支 | 说明 | 适合 |
 | ---- | ---- | ---- |
-| [`main`](https://github.com/totok22/SerialFlash/tree/main)（当前） | **Web Serial + CLI** — 浏览器打开页面或用命令行烧录 | 不想装 VS Code、需要 CI/自动化、任何有浏览器的平台都能用 |
-| [`vscode-extension`](https://github.com/totok22/SerialFlash/tree/vscode-extension) | **VS Code 插件** — 从插件市场安装，在编辑器里烧录 | 常用 VS Code 开发、想要一键集成烧录的开发者 |
+| [`web`](https://github.com/totok22/SerialFlash/tree/web)（当前） | **Web Serial + CLI** — 浏览器打开页面或用命令行烧录 | 不想装 VS Code、需要 CI/自动化、任何有浏览器的平台都能用 |
+| [`main`](https://github.com/totok22/SerialFlash/tree/main) | **VS Code 插件** — 从插件市场安装，在编辑器里烧录 | 常用 VS Code 开发、想要一键集成烧录的开发者 |
 
 两个分支共享相同的 STM32 UART ISP 核心逻辑、DTR/RTS 复位预设和固件解析。按你的场景选一个即可。
 
@@ -44,9 +44,11 @@ Web Serial 需要 **Chrome 或 Edge**（或其他 Chromium 内核浏览器），
 
 ### 快速启动
 
-启动本地服务：
+克隆此分支后启动本地服务：
 
 ```bash
+git clone --branch web https://github.com/totok22/SerialFlash.git
+cd SerialFlash
 python3 -m http.server 8080
 ```
 
