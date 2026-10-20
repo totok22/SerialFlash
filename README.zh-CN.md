@@ -99,6 +99,7 @@ MCU 需引出其系统 ROM Bootloader 支持的 USART 引脚（详见 ST [AN2606
 - [协议说明](docs/STM32_PROTOCOL.md)：STM32 USART ISP Bootloader 通信协议与指令子集。
 - [硬件验证模板](docs/HARDWARE_VALIDATION.md)：实机回归测试规范与记录表。
 - [参与开发](CONTRIBUTING.md)：本地开发环境搭建、F5 调试与 VSIX 打包测试。
+- [免 PAT 的 Marketplace 自动发布教程](docs/VSCODE_MARKETPLACE_ENTRA_OIDC.md)：通用 GitHub Actions + Microsoft Entra OIDC 配置步骤与 SerialFlash 实例。
 - [变更记录](CHANGELOG.md)：版本发布历史与待发布特性。
 
 ---
