@@ -21,26 +21,26 @@
 
 `serialport` 使用原生依赖，不能把单个宿主机器上的 VSIX 当作跨平台验证。CI 只覆盖单元测试、原生依赖加载和 VSIX 打包；实际 STM32 烧写、DTR/RTS 时序、VS Code Extension Host 加载仍需人工实机验证（见 `docs/HARDWARE_VALIDATION.md`）。失败的平台会阻止自动发布，不应删掉失败作业来假装支持该平台。
 
-## Marketplace 认证
+## Marketplace 认证（Microsoft Entra ID + GitHub OIDC）
 
-GitHub Actions 不需要额外的 GitHub PAT。工作流已使用仓库自带的 `GITHUB_TOKEN` 创建 GitHub Release。
+Marketplace 当前不支持直接使用 `vsce publish --oidc` 的完整可信发布后端；请不要使用该选项。微软推荐通过 Microsoft Entra ID 的工作负载身份联合（WIF）配合 `vsce publish --azure-credential`，不必储存或轮换 Marketplace PAT。
 
-**方式 A：Marketplace PAT（默认，配置简单）**
+本工作流使用 GitHub Environment `publish-vscode-marketplace`。**必须先创建与配置这个 Environment，并在 Azure 联合凭据中使用对应的 environment subject**，否则登录失败。
 
-1. 在 [Azure DevOps](https://dev.azure.com/) 登录具备 `totok22` Marketplace Publisher 发布权限的 Microsoft 身份，进入 **User settings → Personal access tokens → New Token**。
-2. 按 VS Code 官方发布文档选择 **All accessible organizations**、**Custom defined → Marketplace → Manage**，设置较短有效期，创建并复制 PAT。
-3. 在 [SerialFlash Actions Secrets](https://github.com/totok22/SerialFlash/settings/secrets/actions) 选择 **New repository secret**，名称填写 `VSCE_PAT`，值粘贴 PAT。不要提交到代码、Issue、PR 或 Actions 日志。
-4. 无需设置 `MARKETPLACE_AUTH`；工作流默认使用 `VSCE_PAT` 认证。过期前需轮换。
+1. 在 [GitHub Environments](https://github.com/totok22/SerialFlash/settings/environments) 创建 `publish-vscode-marketplace`，建议开启 required reviewers 与 deployment branches/tags 限制（仅允许正式发行标签）。
+2. 前往 [Microsoft Entra 管理中心](https://entra.microsoft.com/) → App registrations → New registration，注册供 SerialFlash 发布使用的应用；记录 Application (client) ID 和 Directory (tenant) ID。无需创建用户分配的 Azure 资源。
+3. 进入该应用的 Certificates & secrets → Federated credentials → Add credential → GitHub Actions deploying Azure resources。填写：
+   - Organization: `totok22`
+   - Repository: `SerialFlash`
+   - Entity type: `Environment`
+   - Environment name: `publish-vscode-marketplace`
+   - GitHub OIDC Subject: `repo:totok22/SerialFlash:environment:publish-vscode-marketplace`
+   - Audience: `api://AzureADTokenExchange`
+4. **Marketplace Publisher 授权不可略过。** 按照 [VS Code 官方 Entra 发布文档](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) 的 *Microsoft Entra ID* 部分，取得关联此 Entra 应用的 Azure DevOps/Marketplace 身份，并在 [Publisher 管理页面](https://marketplace.visualstudio.com/manage/publishers/) 的 `totok22` → Members 添加此身份，授予发布权限。此步骤不是简单填入 client ID；需要按文档完成应用主体与 Marketplace Publisher 的关联。
+5. 在 [GitHub Actions Variables](https://github.com/totok22/SerialFlash/settings/variables/actions) 设置 `AZURE_CLIENT_ID` 与 `AZURE_TENANT_ID`。可作为仓库 Variables（本身非密钥）；Workflow 将使用 GitHub 颁发的 OIDC 令牌登录 Entra。
+6. 在经过 CI 测试的版本标签上验证发布流程。VSIX 文件按平台构建；`vsce publish --azure-credential` 使用由 `azure/login` 建立的 Azure CLI 会话，不使用任何 Marketplace PAT。
 
-注意：微软公告 **2026-12-01 停用 Azure DevOps 全局 PAT**。这意味着上面的方式是过渡方案，不应长期依赖。官方建议改为不使用长期 Token 的认证。
-
-**方式 B：OIDC Trusted Publishing（推荐长期使用）**
-
-新版 `vsce` 支持 `publish --oidc`。Marketplace 端必须事先配置并启用信任 **`totok22/SerialFlash`** 和工作流 **`.github/workflows/ci.yml`** 的 Trusted Publishing Policy；请先在 [Publisher 管理页](https://marketplace.visualstudio.com/manage/publishers/) 确认账户当前具备此配置入口与权限。
-
-完成 Marketplace 信任配置后，在 [GitHub Actions Variables](https://github.com/totok22/SerialFlash/settings/variables/actions) 新建 repository variable：`MARKETPLACE_AUTH` = `oidc`。工作流已经将 `id-token: write` 限制在发布 job；此模式不读取 `VSCE_PAT`，不需要存储 Marketplace PAT。
-
-如果 Marketplace 端尚未向当前 Publisher 提供可信发布策略设置，不要仅切换变量，否则身份交换会失败。届时沿用短期 PAT 或按照官方文档采用 Microsoft Entra ID 方式。
+注意：Azure 登录成功只表明联合身份配置有效，**不表示 Publisher 权限已经完成**。若 Marketplace 拒绝发布，请先核实应用所对应的 Marketplace 成员身份与角色，不要尝试绕过授权。
 
 ## 正式发布步骤
 
