@@ -1,3 +1,4 @@
+import { createTranslator, localizePanelHints } from "./i18n.js";
 import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import { flashStm32Uart, syncBootloaderIgnoringNoise } from "../core/flash-session.js";
@@ -18,7 +19,7 @@ import {
 import { createSerialTransport, listSerialPorts } from "./serial-service.js";
 import { writeProjectTasks } from "./tasks.js";
 import {
-  RESET_MODES,
+  getResetModes,
   GLOBAL_KEYS,
   applyFlashSettings,
   parseAddress,
@@ -162,9 +163,10 @@ export class SerialFlashController {
   }
 
   async flashCurrentFile(uri) {
+    const t = createTranslator(this.vscode.env?.language);
     const target = uri ?? this.vscode.window.activeTextEditor?.document?.uri;
     if (!target?.fsPath || !isFirmwarePath(target.fsPath)) {
-      this.vscode.window.showWarningMessage("当前文件不是 .hex 或 .bin 固件。");
+      this.vscode.window.showWarningMessage(t("The current file is not .hex or .bin firmware."));
       return;
     }
     const candidate = firmwareCandidateFromUri(this.vscode, target);
@@ -173,6 +175,7 @@ export class SerialFlashController {
   }
 
   async selectFirmware(uri) {
+    const t = createTranslator(this.vscode.env?.language);
     if (uri?.fsPath && isFirmwarePath(uri.fsPath)) {
       const candidate = firmwareCandidateFromUri(this.vscode, uri);
       await updateWorkspaceSetting(this.vscode, "firmware", candidate.relativePath);
@@ -188,7 +191,7 @@ export class SerialFlashController {
       excludeGlobs: settings.excludeGlobs,
     });
     if (candidates.length === 0) {
-      this.vscode.window.showWarningMessage("工作区中没有找到 .hex 或 .bin 固件。");
+      this.vscode.window.showWarningMessage(t("No .hex or .bin firmware found in the workspace."));
       return null;
     }
     const picked = await this.vscode.window.showQuickPick(await makeFirmwareQuickPickItems(candidates), {
@@ -232,6 +235,7 @@ export class SerialFlashController {
   }
 
   async resolveFirmwareForFlash() {
+    const t = createTranslator(this.vscode.env?.language);
     const settings = readFlashSettings(this.vscode, this.context);
     const rememberedPath = resolveWorkspacePath(this.vscode, settings.firmware);
     if (settings.firmware && await exists(rememberedPath)) {
@@ -255,7 +259,7 @@ export class SerialFlashController {
       excludeGlobs: settings.excludeGlobs,
     });
     if (candidates.length === 0) {
-      this.vscode.window.showWarningMessage("工作区中没有找到 .hex 或 .bin 固件。");
+      this.vscode.window.showWarningMessage(t("No .hex or .bin firmware found in the workspace."));
       return null;
     }
     if (canAutoSelectFirmware(candidates)) {
@@ -266,10 +270,11 @@ export class SerialFlashController {
   }
 
   async selectSerialPort(forcePick = false) {
+    const t = createTranslator(this.vscode.env?.language);
     const settings = readFlashSettings(this.vscode, this.context);
     const ports = sortPorts(await listSerialPorts());
     if (ports.length === 0) {
-      this.vscode.window.showWarningMessage("没有发现串口设备。");
+      this.vscode.window.showWarningMessage(t("No serial devices found."));
       return "";
     }
     if (!forcePick && settings.port && ports.some((port) => port.path === settings.port)) {
@@ -287,14 +292,15 @@ export class SerialFlashController {
   }
 
   async selectResetMode() {
+    const t = createTranslator(this.vscode.env?.language);
     const settings = readFlashSettings(this.vscode, this.context);
-    const picked = await this.vscode.window.showQuickPick(RESET_MODES.map((mode) => ({
+    const picked = await this.vscode.window.showQuickPick(getResetModes(this.vscode.env?.language).map((mode) => ({
       label: mode.label,
-      description: mode.id === settings.resetMode ? "last used" : mode.id,
+      description: mode.id === settings.resetMode ? t("last used") : mode.id,
       detail: mode.description,
       mode,
     })), {
-      title: "Select reset mode",
+      title: t("Select reset mode"),
     });
     if (!picked) return "";
     await updateWorkspaceSetting(this.vscode, "resetMode", picked.mode.id);
@@ -303,6 +309,7 @@ export class SerialFlashController {
   }
 
   async flashCandidate(candidate) {
+    const t = createTranslator(this.vscode.env?.language);
     if (this.isFlashing) {
       this.vscode.window.showWarningMessage("SerialFlash is already flashing.");
       return;
@@ -376,7 +383,7 @@ export class SerialFlashController {
       this.statusBar.command = "serialFlash.openPanel";
       this.postPanelState({ running: false, progress: 100, error: "", troubleshooting: [] });
       this.refreshViews();
-      this.vscode.window.showInformationMessage("SerialFlash: 烧录完成。");
+      this.vscode.window.showInformationMessage(t("SerialFlash: Flashing complete."));
     } catch (error) {
       await recordFlashHistory(this.context, {
         success: false,
@@ -398,8 +405,9 @@ export class SerialFlashController {
       this.statusBar.command = "serialFlash.showOutput";
       this.postPanelState({ running: false, error: error.message, troubleshooting: hints });
       this.refreshViews();
+      const hint = localizePanelHints(hints, this.vscode.env?.language, settings.resetMode)[0];
       const action = await this.vscode.window.showErrorMessage(
-        `SerialFlash failed: ${error.message}. ${hints[0]}`,
+        `SerialFlash failed: ${error.message}. ${hint}`,
         "Select Port",
         "Select Reset Mode",
         "Run Diagnostics",
@@ -534,7 +542,8 @@ export class SerialFlashController {
         port,
         resetMode: settings.resetMode,
       });
-      this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hints[0]}`, "Run Diagnostics", "Open Output").then((choice) => {
+      const hint = localizePanelHints(hints, this.vscode.env?.language, settings.resetMode)[0];
+      this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hint}`, "Run Diagnostics", "Open Output").then((choice) => {
         if (choice === "Run Diagnostics") this.runDiagnostics();
         if (choice === "Open Output") this.output.show();
       });
@@ -569,7 +578,8 @@ export class SerialFlashController {
       this.output.append(`Error: ${error.message}`);
       this.output.append("Troubleshooting:");
       hints.forEach((hint) => this.output.append(`- ${hint}`));
-      this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hints[0]}`, "Select Reset Mode", "Open Output").then((choice) => {
+      const hint = localizePanelHints(hints, this.vscode.env?.language, settings.resetMode)[0];
+      this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hint}`, "Select Reset Mode", "Open Output").then((choice) => {
         if (choice === "Select Reset Mode") this.selectResetMode();
         if (choice === "Open Output") this.output.show();
       });

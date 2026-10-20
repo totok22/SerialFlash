@@ -1,12 +1,21 @@
+import { createTranslator } from "./i18n.js";
+
 export const CONFIG_SECTION = "serialFlash";
 
-export const RESET_MODES = [
-  { id: "dtr-low-rts-high", label: "CH340C 经典电路", description: "DTR low / RTS high verified classic CH340C timing" },
-  { id: "ch340x", label: "CH340X 直连电路", description: "Direct DTR/RTS wiring timing" },
-  { id: "none", label: "手动 BOOT0/RESET", description: "Do not drive modem control lines" },
-  { id: "dtr-high-rts-low", label: "通用 DTR 高复位 / RTS 低 BOOT", description: "Generic preset" },
-  { id: "custom", label: "自定义 DTR/RTS 映射", description: "Use serialFlash.customReset.* settings" },
+const RESET_MODE_DEFINITIONS = [
+  { id: "dtr-low-rts-high", label: "CH340C classic circuit", description: "DTR low / RTS high verified classic CH340C timing" },
+  { id: "ch340x", label: "CH340X direct circuit", description: "Direct DTR/RTS wiring timing" },
+  { id: "none", label: "Manual BOOT0/RESET", description: "Do not drive modem control lines" },
+  { id: "dtr-high-rts-low", label: "Generic DTR high reset / RTS low BOOT", description: "Generic preset" },
+  { id: "custom", label: "Custom DTR/RTS mapping", description: "Use serialFlash.customReset.* settings" },
 ];
+
+export function getResetModes(language) {
+  const t = createTranslator(language);
+  return RESET_MODE_DEFINITIONS.map((mode) => ({ ...mode, label: t(mode.label), description: t(mode.description) }));
+}
+
+export const RESET_MODES = getResetModes("en");
 
 export const GLOBAL_KEYS = {
   port: "serialFlash.lastSuccessfulPort",

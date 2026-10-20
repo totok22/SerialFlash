@@ -272,7 +272,7 @@ h2 {
 
 .target-key {
   flex-shrink: 0;
-  width: 30px;
+  min-width: 30px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -338,7 +338,8 @@ h2 {
 }
 
 .quick-actions button {
-  flex: 1 1 84px;
+  flex: 1 1 auto;
+  white-space: nowrap;
 }
 
 .option-pills {
@@ -398,6 +399,7 @@ details[open] {
 
 summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 11px 14px;
@@ -426,10 +428,15 @@ details[open] summary::before {
 }
 
 summary span {
+  max-width: calc(100% - 14px);
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 
 summary small {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 12px;
 }
 

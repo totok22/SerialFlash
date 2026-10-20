@@ -1,4 +1,8 @@
 const vscode = acquireVsCodeApi();
+const locale = JSON.parse(document.getElementById("serialflash-locale").textContent);
+const t = (message) => Object.hasOwn(locale.messages, message) ? locale.messages[message] : message;
+const resetLabel = (id) => locale.resetModes.find((mode) => mode.id === id)?.label || id;
+const phaseLabels = { write: "Writing", verify: "Verifying" };
 
 const refs = {
   firmware: document.getElementById("firmware"),
@@ -10,6 +14,7 @@ const refs = {
   phase: document.getElementById("phase"),
   progressText: document.getElementById("progressText"),
   bar: document.getElementById("bar"),
+  progress: document.querySelector("[role=progressbar]"),
   log: document.getElementById("log"),
   history: document.getElementById("history"),
   diagnostics: document.getElementById("diagnostics"),
@@ -28,32 +33,40 @@ function optionPill(label, enabled) {
   const item = document.createElement("span");
   item.className = `pill${enabled ? " enabled" : ""}`;
   item.textContent = label;
+  item.title = `${label}: ${t(enabled ? "Enabled" : "Disabled")}`;
   return item;
 }
 
 function render(state) {
   const settings = state.settings || {};
-  setText(refs.firmware, settings.firmware);
-  setText(refs.port, settings.port);
-  setText(refs.reset, settings.resetMode);
+  setText(refs.firmware, settings.firmware || t("No firmware selected"));
+  refs.firmware.title = settings.firmware || t("No firmware selected");
+  setText(refs.port, settings.port || t("No port selected"));
+  setText(refs.reset, resetLabel(settings.resetMode));
+  refs.reset.title = settings.resetMode || "";
 
   const serialFormat = `${settings.baudRate || 115200} 8${settings.parity === "none" ? "N" : "E"}1`;
-  const address = settings.flashAddress || "HEX auto / BIN 0x08000000";
+  const address = settings.flashAddress || t("HEX auto / BIN 0x08000000");
   setText(refs.runSummary, `${serialFormat} / ${address}`);
 
   const options = [
-    ["擦除", settings.eraseBeforeWrite],
-    ["校验", settings.verifyAfterWrite],
-    ["运行", settings.runAfterWrite],
-    ["关串口", settings.closePortAfterWrite],
-    ["解锁", settings.unlockReadProtection],
+    [t("Erase"), settings.eraseBeforeWrite],
+    [t("Verify"), settings.verifyAfterWrite],
+    [t("Run"), settings.runAfterWrite],
+    [t("Close port"), settings.closePortAfterWrite],
+    [t("Unlock"), settings.unlockReadProtection],
   ];
   refs.optionPills?.replaceChildren(...options.map(([label, enabled]) => optionPill(label, enabled)));
 
   const progress = Number.isFinite(state.progress) ? state.progress : 0;
-  refs.bar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
-  refs.progressText.textContent = `${Math.round(progress)}%`;
-  refs.phase.textContent = state.error || state.phase || (state.running ? "Flashing" : "Idle");
+  const percent = Math.round(Math.max(0, Math.min(100, progress)));
+  refs.bar.style.width = `${percent}%`;
+  refs.progress?.setAttribute("aria-valuenow", String(percent));
+  refs.progressText.textContent = `${percent}%`;
+  const phase = state.running
+    ? phaseLabels[state.phase] || state.phase || "Flashing"
+    : progress >= 100 ? "Done" : "Idle";
+  refs.phase.textContent = state.error || t(phase);
   const statusState = state.running
     ? "running"
     : state.error
@@ -83,28 +96,34 @@ function render(state) {
     button.disabled = (state.running === true && !allowRunning) || (state.running !== true && requiresRunning);
   }
 
-  refs.log.textContent = (state.log || []).slice(-18).join("\n");
+  refs.log.textContent = (state.log || []).slice(-18).join("\n") || t("No output yet");
   refs.history.replaceChildren(...(state.history || []).slice(0, 8).map((entry) => {
     const item = document.createElement("li");
     const title = document.createElement("strong");
-    title.textContent = entry.firmware || "Unknown firmware";
+    title.textContent = entry.firmware || t("Unknown firmware");
     const meta = document.createElement("span");
-    meta.textContent = [entry.success === false ? "failed" : "done", entry.port, entry.resetMode].filter(Boolean).join(" / ");
+    meta.textContent = [t(entry.success === false ? "Failed" : "Done"), entry.port, resetLabel(entry.resetMode)].filter(Boolean).join(" / ");
     item.append(title, meta);
     return item;
   }));
 
+  if (!refs.history.children.length) {
+    const item = document.createElement("li");
+    item.textContent = t("No flash history");
+    refs.history.append(item);
+  }
+
   const diagnostics = state.diagnostics;
   refs.diagnostics.textContent = diagnostics
     ? [
-        `Host: ${diagnostics.extensionHost.remoteName}`,
-        `OS: ${diagnostics.extensionHost.platform} ${diagnostics.extensionHost.arch}`,
-        `serialport: ${diagnostics.serialport.loaded ? "loaded" : diagnostics.serialport.error}`,
-        `ports: ${diagnostics.ports.length}`,
+        `${t("Host")}: ${diagnostics.extensionHost.remoteName === "local" ? t("Local") : diagnostics.extensionHost.remoteName}`,
+        `${t("OS")}: ${diagnostics.extensionHost.platform} ${diagnostics.extensionHost.arch}`,
+        `serialport: ${diagnostics.serialport.loaded ? t("Loaded") : `${t("Failed")}: ${diagnostics.serialport.error}`}`,
+        `${t("Ports")}: ${diagnostics.ports.length}`,
         ...diagnostics.ports.map((port) => [
           `- ${port.path}`,
           port.manufacturer,
-          port.serialNumber && `SN ${port.serialNumber}`,
+          port.serialNumber && `${t("Serial number")} ${port.serialNumber}`,
         ].filter(Boolean).join(" ")),
       ].join("\n")
     : "";

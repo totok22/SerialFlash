@@ -25,6 +25,18 @@ test("shouldAutoSelectFirmware requires a clear score gap", () => {
   assert.equal(shouldAutoSelectFirmware([{ score: 100 }, { score: 64 }]), true);
 });
 
+test("firmware discovery excludes CMake compiler checks without skewing firmware scores", () => {
+  const firmware = { relativePath: "build/Debug/app.hex", size: 65536, mtimeMs: 1000 };
+  const probes = [
+    { relativePath: "build/Debug/CMakeFiles/4.4.2/CMakeDetermineCompilerABI_CXX.bin", size: 16384, mtimeMs: 9999999 },
+    { path: "C:\\project\\build\\CMakeFiles\\4.4.2\\CMakeDetermineCompilerABI_C.bin", size: 16384, mtimeMs: 9999999 },
+  ];
+
+  assert.deepEqual(sortFirmwareCandidates([...probes, firmware]), sortFirmwareCandidates([firmware]));
+  assert.deepEqual(sortFirmwareCandidates(probes), []);
+  assert.equal(shouldAutoSelectFirmware(sortFirmwareCandidates(probes)), false);
+});
+
 test("formatFirmwareSize formats bytes and KiB", () => {
   assert.equal(formatFirmwareSize(512), "512 B");
   assert.equal(formatFirmwareSize(65536), "64 KB");

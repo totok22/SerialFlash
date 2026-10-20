@@ -12,7 +12,8 @@ build/
 .env.*.local
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo

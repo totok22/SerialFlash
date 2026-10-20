@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SerialFlashPanel } from "../src/vscode/panel.js";
 
-function fakeVscode() {
+function fakeVscode(language) {
   return {
+    env: { language },
     ViewColumn: { One: 1 },
     Uri: {
       joinPath(uri, ...parts) {
@@ -36,9 +37,9 @@ function makePanel(controller) {
   return { panel, messages };
 }
 
-function makeHtmlPanel() {
+function makeHtmlPanel(language) {
   const panel = new SerialFlashPanel(
-    fakeVscode(),
+    fakeVscode(language),
     { extensionUri: { fsPath: "/extension" } },
     { show: () => {} },
   );
@@ -131,10 +132,48 @@ test("panel includes troubleshooting output area", () => {
 test("panel groups advanced and dangerous controls", () => {
   const html = makeHtmlPanel().html();
 
-  assert.match(html, /<span>烧录参数<\/span>/);
-  assert.match(html, /<span>硬件复位<\/span>/);
-  assert.match(html, /<span>项目与自动化<\/span>/);
-  assert.match(html, /<span>维护与危险操作<\/span>/);
+  assert.match(html, /<span>Flash parameters<\/span>/);
+  assert.match(html, /<span>Hardware reset<\/span>/);
+  assert.match(html, /<span>Projects and automation<\/span>/);
+  assert.match(html, /<span>Maintenance and dangerous operations<\/span>/);
   assert.match(html, /data-action="unlock" class="danger"/);
   assert.match(html, /data-action="clearRemembered"/);
+});
+
+for (const language of [undefined, "en", "en-US", "de", "fr"]) {
+  test(`panel defaults to English for ${language}`, () => {
+    const html = makeHtmlPanel(language).html();
+    assert.match(html, /<html lang="en">/);
+    assert.doesNotMatch(html, /[\u3400-\u9fff]/);
+    assert.match(html, /placeholder="Leave blank to use the HEX file address"/);
+    assert.match(html, /aria-label="Flash progress"/);
+    assert.match(html, /title="Select firmware" aria-label="Select firmware"/);
+  });
+}
+
+for (const language of ["zh", "zh-CN", "zh-TW", "zh-HK", "zh-Hans", "ZH_hant"]) {
+  test(`panel uses Chinese for ${language}`, () => {
+    const html = makeHtmlPanel(language).html();
+    assert.match(html, /<html lang="zh-CN">/);
+    assert.match(html, /<span>烧录参数<\/span>/);
+    assert.match(html, /placeholder="HEX 可留空使用文件地址"/);
+    assert.match(html, /aria-label="烧录进度"/);
+    assert.match(html, /title="选择固件" aria-label="选择固件"/);
+    assert.match(html, /<option value="even">偶校验<\/option>/);
+    assert.match(html, /<option value="dtr-true">DTR 低电平（true）<\/option>/);
+  });
+}
+
+
+test("panel localizes known hints at the boundary without mutating state or translating logs", () => {
+  const { panel, messages } = makePanel(fakeController());
+  const hint = "关闭占用串口的串口监视器、终端、烧录工具或上一轮未释放的连接。";
+  const state = { troubleshooting: [hint, "外部设备消息"], log: [hint], error: "设备错误", settings: {} };
+  panel.postState(state);
+  const sent = messages[0].state;
+  assert.doesNotMatch(sent.troubleshooting[0], /[\u3400-\u9fff]/);
+  assert.equal(sent.troubleshooting[1], "外部设备消息");
+  assert.deepEqual(state.troubleshooting, [hint, "外部设备消息"]);
+  assert.deepEqual(sent.log, [hint]);
+  assert.equal(sent.error, "设备错误");
 });

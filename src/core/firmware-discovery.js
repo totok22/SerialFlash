@@ -62,9 +62,13 @@ export function scoreFirmwareCandidate(candidate, {
 }
 
 export function sortFirmwareCandidates(candidates, options = {}) {
-  const newestMtimeMs = Math.max(0, ...candidates.map((candidate) => candidate.mtimeMs ?? 0));
-  return candidates
-    .filter((candidate) => isFirmwarePath(candidate.relativePath ?? candidate.path ?? ""))
+  // CMake compiler checks also produce .bin files, but they are not board firmware.
+  const firmwareCandidates = candidates.filter((candidate) => {
+    const path = candidate.relativePath ?? candidate.path ?? "";
+    return isFirmwarePath(path) && !pathParts(path).includes("cmakefiles");
+  });
+  const newestMtimeMs = Math.max(0, ...firmwareCandidates.map((candidate) => candidate.mtimeMs ?? 0));
+  return firmwareCandidates
     .map((candidate) => ({
       ...candidate,
       score: scoreFirmwareCandidate(candidate, { ...options, newestMtimeMs }),
