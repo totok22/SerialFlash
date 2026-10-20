@@ -27,15 +27,15 @@ Marketplace 当前不支持直接使用 `vsce publish --oidc` 的完整可信发
 
 本工作流使用 GitHub Environment `publish-vscode-marketplace`。**必须先创建与配置这个 Environment，并在 Azure 联合凭据中使用对应的 environment subject**，否则登录失败。
 
-1. 在 [GitHub Environments](https://github.com/totok22/SerialFlash/settings/environments) 创建 `publish-vscode-marketplace`，建议开启 required reviewers 与 deployment branches/tags 限制（仅允许正式发行标签）。
+1. 在 [GitHub Environments](https://github.com/totok22/SerialFlash/settings/environments) 创建 `publish-vscode-marketplace`，建议将 Deployment branches and tags 设为 Selected branches and tags，仅添加 Tag 模式 `v*`；也可开启 required reviewers，并关闭管理员绕过保护规则（按仓库实际权限可选）。
 2. 前往 [Microsoft Entra 管理中心](https://entra.microsoft.com/) → App registrations → New registration，注册供 SerialFlash 发布使用的应用；记录 Application (client) ID 和 Directory (tenant) ID。无需创建用户分配的 Azure 资源。
 3. 进入该应用的 Certificates & secrets → Federated credentials → Add credential → GitHub Actions deploying Azure resources。填写：
-   - Organization: `totok22`
-   - Repository: `SerialFlash`
+   - Organization: `totok22` / Organization ID: `161900590`
+   - Repository: `SerialFlash` / Repository ID: `1255150268`
    - Entity type: `Environment`
    - Environment name: `publish-vscode-marketplace`
-   - GitHub OIDC Subject: `repo:totok22/SerialFlash:environment:publish-vscode-marketplace`
    - Audience: `api://AzureADTokenExchange`
+   - **Subject must match the actual GitHub token**. SerialFlash was created before 2026-07-15; unless it explicitly opted into immutable OIDC subjects or was renamed/transferred after that date, edit the generated Subject to `repo:totok22/SerialFlash:environment:publish-vscode-marketplace`. For repositories using immutable subjects, keep `repo:totok22@161900590/SerialFlash@1255150268:environment:publish-vscode-marketplace`. See [GitHub OIDC documentation](https://docs.github.com/en/actions/reference/security/oidc) and check actual repository OIDC configuration before selecting a format.
 4. **Marketplace Publisher 授权不可略过。** 按照 [VS Code 官方 Entra 发布文档](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) 的 *Microsoft Entra ID* 部分，取得关联此 Entra 应用的 Azure DevOps/Marketplace 身份，并在 [Publisher 管理页面](https://marketplace.visualstudio.com/manage/publishers/) 的 `totok22` → Members 添加此身份，授予发布权限。此步骤不是简单填入 client ID；需要按文档完成应用主体与 Marketplace Publisher 的关联。
 5. 在 [GitHub Actions Variables](https://github.com/totok22/SerialFlash/settings/variables/actions) 设置 `AZURE_CLIENT_ID` 与 `AZURE_TENANT_ID`。可作为仓库 Variables（本身非密钥）；Workflow 将使用 GitHub 颁发的 OIDC 令牌登录 Entra。
 6. 在经过 CI 测试的版本标签上验证发布流程。VSIX 文件按平台构建；`vsce publish --azure-credential` 使用由 `azure/login` 建立的 Azure CLI 会话，不使用任何 Marketplace PAT。
