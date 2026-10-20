@@ -99,6 +99,7 @@ An explicit `serialFlash.flashAddress` setting overrides both defaults. For all 
 - [Protocol Reference](docs/STM32_PROTOCOL.en.md): STM32 USART ISP bootloader packet format and supported commands.
 - [Hardware Validation](docs/HARDWARE_VALIDATION.md): Physical hardware test criteria and report template.
 - [Contributing](CONTRIBUTING.en.md): Setting up local development, F5 debugging, and VSIX packaging.
+- [PAT-free Marketplace publishing guide](docs/VSCODE_MARKETPLACE_ENTRA_OIDC.en.md): Reusable GitHub Actions + Microsoft Entra OIDC tutorial, with a verified SerialFlash example.
 - [Changelog](CHANGELOG.md): Release history and upcoming features.
 
 ---
