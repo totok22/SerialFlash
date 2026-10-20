@@ -1,0 +1,98 @@
+name: CI and Release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: win32-x64
+          - os: windows-11-arm
+            target: win32-arm64
+          - os: macos-15-intel
+            target: darwin-x64
+          - os: macos-15
+            target: darwin-arm64
+          - os: ubuntu-24.04
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run unit tests
+        run: npm test
+      - name: Check native serialport binding
+        run: node tests/native-binding-smoke.mjs
+      - name: Package platform-specific extension
+        run: npx --yes @vscode/vsce@4.0.0 package --target ${{ matrix.target }} --out serialflash-stm32-${{ matrix.target }}.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: serialflash-stm32-${{ matrix.target }}.vsix
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: GitHub Release and VS Code Marketplace
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require tag to match manifest version
+        run: |
+          node -e 'const version = require("./package.json").version; const tag = process.env.GITHUB_REF_NAME; if (tag !== "v" + version) { console.error("Tag " + tag + " does not match package.json version " + version); process.exit(1); }'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          path: dist
+          merge-multiple: true
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.vsix --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.vsix --verify-tag --title "SerialFlash $GITHUB_REF_NAME" --generate-notes
+          fi
+      - name: Publish to Marketplace (trusted publishing)
+        if: vars.MARKETPLACE_AUTH == 'oidc'
+        run: npx --yes @vscode/vsce@4.0.0 publish --oidc --packagePath dist/*.vsix --skip-duplicate
+      - name: Publish to Marketplace (PAT)
+        if: vars.MARKETPLACE_AUTH != 'oidc'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::Repository secret VSCE_PAT is missing. See docs/RELEASING.md."
+            exit 1
+          fi
+          npx --yes @vscode/vsce@4.0.0 publish --packagePath dist/*.vsix --skip-duplicate
