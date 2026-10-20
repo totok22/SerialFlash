@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { discoverFirmware, makeFirmwareQuickPickItems } from "../src/vscode/firmware-service.js";
 
@@ -10,7 +10,7 @@ function fakeVscode(root, filesByGlob) {
     workspace: {
       workspaceFolders: [{ name: "app", uri: { fsPath: root } }],
       getWorkspaceFolder(uri) {
-        return uri.fsPath.startsWith(`${root}/`) ? { uri: { fsPath: root } } : null;
+        return uri.fsPath.startsWith(`${root}${sep}`) ? { uri: { fsPath: root } } : null;
       },
       async findFiles(glob, exclude) {
         return (filesByGlob[glob] || []).map((file) => ({ fsPath: file, exclude }));
@@ -34,7 +34,7 @@ test("discoverFirmware uses configured globs and deduplicates results", async ()
   });
 
   assert.deepEqual(candidates.map((candidate) => candidate.relativePath).sort(), [
-    "build/Debug/app.hex",
+    join("build", "Debug", "app.hex"),
     "other.hex",
   ]);
 });
