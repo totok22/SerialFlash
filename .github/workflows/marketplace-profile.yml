@@ -1,0 +1,56 @@
+name: Lookup Marketplace Publisher User ID
+
+# One-time administrative lookup. No extension is built or published.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    name: Query Azure DevOps profile using Entra OIDC
+    runs-on: ubuntu-24.04
+    environment: publish-vscode-marketplace
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Verify identity configuration
+        env:
+          CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        shell: bash
+        run: |
+          if [[ -z "$CLIENT_ID" || -z "$TENANT_ID" ]]; then
+            echo "::error::Set AZURE_CLIENT_ID and AZURE_TENANT_ID in GitHub Actions repository variables."
+            exit 1
+          fi
+      - name: Authenticate service principal via GitHub OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Retrieve Marketplace Publisher member User ID
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE_ID="$(az rest \
+            --method get \
+            --url 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me' \
+            --resource '499b84ac-1321-427f-aa17-267ca6975798' \
+            --query id \
+            --output tsv)"
+          if [[ -z "$PROFILE_ID" || "$PROFILE_ID" == "None" || "$PROFILE_ID" == "null" ]]; then
+            echo "::error::Azure DevOps Profile API returned no profile ID."
+            exit 1
+          fi
+          echo "Marketplace Publisher User ID: $PROFILE_ID"
+          {
+            echo '### Marketplace Publisher member User ID'
+            echo
+            echo "\`$PROFILE_ID\`"
+            echo
+            echo 'Use this ID in Marketplace → totok22 → Members → Add, with role Contributor.'
+          } >> "$GITHUB_STEP_SUMMARY"
