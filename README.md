@@ -41,6 +41,10 @@ code --install-extension totok22.serialflash-stm32
 
 *The panel language adapts automatically to the VS Code display language (English and Chinese supported).*
 
+![Selecting a serial port and flashing from the SerialFlash panel](docs/assets/serialflash-demo.gif)
+
+*Open the SerialFlash sidebar, pick the serial port, and start flashing; the panel reports Writing and Verifying progress.*
+
 ---
 
 ## Quick Start

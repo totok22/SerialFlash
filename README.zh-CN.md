@@ -41,6 +41,10 @@ code --install-extension totok22.serialflash-stm32
 
 *面板语言跟随 VS Code 界面语言自动切换（支持中文与英文）。*
 
+![在 SerialFlash 面板中选择串口并烧录](docs/assets/serialflash-demo.gif)
+
+*打开 SerialFlash 侧边栏，选择串口并开始烧录，面板会显示 Writing 与 Verifying 进度（演示为英文界面）。*
+
 ---
 
 ## 快速上手

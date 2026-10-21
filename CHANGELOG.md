@@ -3,6 +3,7 @@
 ## Unreleased
 
 - SerialFlash 输出通道中的 `Troubleshooting` 排查提示改为跟随 VS Code 显示语言：中文界面显示中文，其他语言显示英文。此前该提示在日志中固定为中文，Webview 面板和错误弹窗已经本地化。外部错误文本和设备输出仍保持原样。
+- 双语 README 的“面板预览”新增一段操作演示 GIF（`docs/assets/serialflash-demo.gif`），展示选择串口、开始烧录与 Writing/Verifying 进度。
 
 ## 0.2.1 - 2026-10-20
 
