@@ -91,7 +91,16 @@ for (const language of ["en", "zh-HK"]) {
     assert.ok(view.errors[0].includes(error.message));
     if (language === "en") assert.doesNotMatch(view.errors[0], /[\u3400-\u9fff]/);
     else assert.match(view.errors[0], /关闭占用串口/);
-    assert.ok(view.logs.some((line) => line.includes("关闭占用串口")), "raw output log remains unchanged");
+    assert.ok(view.logs.includes(`Error: ${error.message}`), "external error text stays verbatim in the output log");
+    if (language === "en") {
+      assert.ok(view.logs.includes("Troubleshooting:"));
+      assert.ok(view.logs.some((line) => line.includes("Close serial monitors")));
+      assert.ok(!view.logs.some((line) => line.includes("关闭占用串口")), "output hints follow the English locale");
+    } else {
+      assert.ok(view.logs.includes("故障排查:"));
+      assert.ok(view.logs.some((line) => line.includes("关闭占用串口")));
+      assert.ok(!view.logs.some((line) => line.includes("Close serial monitors")), "output hints follow the Chinese locale");
+    }
   });
 }
 
@@ -106,6 +115,9 @@ for (const method of ["runBootloaderAction", "runResetAction"]) {
     assert.ok(view.errors[0].includes(error.message));
     assert.match(view.errors[0], /Close serial monitors/);
     assert.doesNotMatch(view.errors[0], /关闭占用串口/);
+    assert.ok(view.logs.includes("Troubleshooting:"));
+    assert.ok(view.logs.some((line) => line.includes("Close serial monitors")));
+    assert.ok(!view.logs.some((line) => line.includes("关闭占用串口")), "output hints follow the English locale");
   });
 }
 

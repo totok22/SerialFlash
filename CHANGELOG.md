@@ -1,5 +1,9 @@
 # 变更记录
 
+## Unreleased
+
+- SerialFlash 输出通道中的 `Troubleshooting` 排查提示改为跟随 VS Code 显示语言：中文界面显示中文，其他语言显示英文。此前该提示在日志中固定为中文，Webview 面板和错误弹窗已经本地化。外部错误文本和设备输出仍保持原样。
+
 ## 0.2.1 - 2026-10-20
 
 - 将 VS Code 插件作为 `main` 的主要版本，Web Serial 页面和 CLI 单独维护在 `web` 分支。

@@ -8,7 +8,7 @@ import { Stm32Bootloader } from "../stm32.js";
 import { toHex } from "../stm32.js";
 import { clearFlashHistory, readFlashHistory, recordFlashHistory } from "./history.js";
 import { collectDiagnostics, formatDiagnostics } from "./diagnostics.js";
-import { appendTroubleshooting, troubleshootingHints } from "./error-hints.js";
+import { appendTroubleshooting } from "./error-hints.js";
 import { projectProfileFromState, writeProjectSettings } from "./project-config.js";
 import {
   canAutoSelectFirmware,
@@ -400,7 +400,7 @@ export class SerialFlashController {
         port,
         resetMode: settings.resetMode,
         firmware: candidate.relativePath,
-      });
+      }, this.vscode.env?.language);
       this.statusBar.text = "SerialFlash: Error";
       this.statusBar.command = "serialFlash.showOutput";
       this.postPanelState({ running: false, error: error.message, troubleshooting: hints });
@@ -541,7 +541,7 @@ export class SerialFlashController {
       const hints = appendTroubleshooting(this.output, error, {
         port,
         resetMode: settings.resetMode,
-      });
+      }, this.vscode.env?.language);
       const hint = localizePanelHints(hints, this.vscode.env?.language, settings.resetMode)[0];
       this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hint}`, "Run Diagnostics", "Open Output").then((choice) => {
         if (choice === "Run Diagnostics") this.runDiagnostics();
@@ -571,13 +571,11 @@ export class SerialFlashController {
       await action(transport, delay, resolveResetConfig(settings));
       this.output.append(`${label} complete`);
     } catch (error) {
-      const hints = troubleshootingHints(error, {
+      this.output.append(`Error: ${error.message}`);
+      const hints = appendTroubleshooting(this.output, error, {
         port,
         resetMode: settings.resetMode,
-      });
-      this.output.append(`Error: ${error.message}`);
-      this.output.append("Troubleshooting:");
-      hints.forEach((hint) => this.output.append(`- ${hint}`));
+      }, this.vscode.env?.language);
       const hint = localizePanelHints(hints, this.vscode.env?.language, settings.resetMode)[0];
       this.vscode.window.showErrorMessage(`${label} failed: ${error.message}. ${hint}`, "Select Reset Mode", "Open Output").then((choice) => {
         if (choice === "Select Reset Mode") this.selectResetMode();

@@ -1,3 +1,5 @@
+import { createTranslator, localizePanelHints } from "./i18n.js";
+
 function messageOf(error) {
   return String(error?.message || error || "");
 }
@@ -50,9 +52,11 @@ export function troubleshootingHints(error, context = {}) {
   return [...new Set(hints)];
 }
 
-export function appendTroubleshooting(output, error, context = {}) {
+// Returns the unlocalized hints so callers can localize them again for dialogs and the panel.
+export function appendTroubleshooting(output, error, context = {}, language) {
   const hints = troubleshootingHints(error, context);
-  output.append("Troubleshooting:");
-  hints.forEach((hint) => output.append(`- ${hint}`));
+  const t = createTranslator(language);
+  output.append(`${t("Troubleshooting")}:`);
+  localizePanelHints(hints, language, context.resetMode).forEach((hint) => output.append(`- ${hint}`));
   return hints;
 }
