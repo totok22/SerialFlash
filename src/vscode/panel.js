@@ -218,6 +218,14 @@ export class SerialFlashPanel {
             </select>
             <small>${t("Default: 8E1.")}</small>
           </label>
+          <label>
+            <span>${t("Run mode")}</span>
+            <select id="runModeInput" data-setting="runMode">
+              <option value="hardware-reset">${t("Hardware reset")}</option>
+              <option value="go">${t("Bootloader GO")}</option>
+            </select>
+            <small>${t("Used only when Run after success is enabled.")}</small>
+          </label>
         </div>
         <div class="checks">
           <label><input type="checkbox" data-setting="eraseBeforeWrite"> ${t("Erase before flashing")}</label>

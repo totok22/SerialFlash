@@ -120,6 +120,7 @@ export class SerialFlashSidebarProvider {
         entry.time,
         entry.port,
         entry.resetMode,
+        typeof entry.runAfterWrite === "boolean" ? `Run: ${entry.runAfterWrite ? entry.runMode || "hardware-reset" : "No Run"}` : "",
         entry.address,
         entry.bytes ? `${entry.bytes} bytes` : "",
       ].filter(Boolean).join("\n"),

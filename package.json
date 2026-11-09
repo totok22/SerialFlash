@@ -1,6 +1,6 @@
 {
   "name": "serialflash-stm32",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "VS Code extension for flashing STM32 firmware through the USART bootloader.",
   "displayName": "STM32 Serial Flasher",
   "publisher": "totok22",
@@ -385,7 +385,16 @@
         "serialFlash.runAfterWrite": {
           "type": "boolean",
           "default": true,
-          "description": "Reset and run user firmware after successful flashing."
+          "description": "Run user firmware after successful flashing using serialFlash.runMode. False skips the run step (No Run)."
+        },
+        "serialFlash.runMode": {
+          "type": "string",
+          "enum": [
+            "hardware-reset",
+            "go"
+          ],
+          "default": "hardware-reset",
+          "description": "How to run firmware after flashing: hardware reset or the bootloader GO command. Ignored when runAfterWrite is false."
         },
         "serialFlash.closePortAfterWrite": {
           "type": "boolean",
@@ -486,6 +495,13 @@
               },
               "runAfterWrite": {
                 "type": "boolean"
+              },
+              "runMode": {
+                "type": "string",
+                "enum": [
+                  "hardware-reset",
+                  "go"
+                ]
               },
               "closePortAfterWrite": {
                 "type": "boolean"

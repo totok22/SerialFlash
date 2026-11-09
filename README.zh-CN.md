@@ -15,7 +15,8 @@ STM32 Serial Flasher 是一款适用于 VS Code 的固件烧录扩展，通过�
 
 - **多交互入口**：支持图形化控制面板（Webview）、Activity Bar 侧边栏、命令面板、文件右键菜单及状态栏快捷操作。
 - **固件自动发现**：检索工作区构建输出，自动排除编译器探测产物（如 `CMakeFiles`），支持 Intel HEX 基地址解析与 BIN 格式。
-- **灵活的硬件复位**：内置 CH340C、CH340X 经典自动下载时序预设，支持纯手动模式与自定义 DTR/RTS 控制线映射。
+- **硬件复位模式**：内置 CH340C、CH340X 自动下载时序预设，支持手动模式与自定义 DTR/RTS 控制线映射。
+- **烧录后运行方式（0.2.2 预发布）**：`runMode` 可选 `hardware-reset`（默认）或 Bootloader `go`；`runAfterWrite: false` 跳过运行步骤。详见[运行行为与边界](docs/USAGE.md)。命令完成不代表应用已运行；实测范围见[硬件验证记录](docs/HARDWARE_VALIDATION.md)。
 - **配置记忆与多 Profile**：自动记住成功烧录参数，支持通过命名配置（Profile）管理不同板卡与构建目标。
 - **VS Code Tasks 集成**：提供 Task Provider，可直接与编译任务串联，按顺序自动完成构建与烧录。
 - **诊断与完整日志**：内置串口枚举与扩展宿主环境诊断工具，提供实时操作日志与排查指引。
@@ -31,7 +32,7 @@ code --install-extension totok22.serialflash-stm32
 ```
 
 > [!NOTE]
-> 当前市场已发布版本为 **0.2.1**。双语面板与文档更新见 [CHANGELOG.md](CHANGELOG.md)。本地开发与调试请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> 当前市场正式版本为 **0.2.1**。双语面板与文档更新见 [CHANGELOG.md](CHANGELOG.md)。测试 **0.2.2** 时，在扩展详情中选择 **Switch to Pre-Release Version（切换到预发布版本）**。本地开发与调试请参考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
@@ -66,7 +67,7 @@ MCU 需引出其系统 ROM Bootloader 支持的 USART 引脚（详见 ST [AN2606
 | --- | --- |
 | `dtr-low-rts-high` | **CH340C 经典外围电路**（三极管控制 BOOT0/RESET，扩展默认） |
 | `ch340x` | **CH340X 直连电路**（利用 RTS# 与增强 DTR 控制线） |
-| `none` | **手动模式**（通过板载按键或跳线手动拉高 BOOT0 并复位，扩展不控制 DTR/RTS） |
+| `none` | **手动模式**（通过板载按键或跳线手动拉高 BOOT0 并复位，扩展不发送控制线时序） |
 | `dtr-high-rts-low` | **通用反向模式**（DTR 高电平复位，RTS 低电平进入 BOOT） |
 | `custom` | **自定义模式**（手动指定 DTR 与 RTS 的高低电平映射） |
 

@@ -2,6 +2,9 @@ const vscode = acquireVsCodeApi();
 const locale = JSON.parse(document.getElementById("serialflash-locale").textContent);
 const t = (message) => Object.hasOwn(locale.messages, message) ? locale.messages[message] : message;
 const resetLabel = (id) => locale.resetModes.find((mode) => mode.id === id)?.label || id;
+const runLabel = (settings) => settings.runAfterWrite === false
+  ? t("No Run")
+  : settings.runMode === "go" ? t("Bootloader GO") : t("Hardware reset");
 const phaseLabels = { write: "Writing", verify: "Verifying" };
 
 const refs = {
@@ -52,7 +55,7 @@ function render(state) {
   const options = [
     [t("Erase"), settings.eraseBeforeWrite],
     [t("Verify"), settings.verifyAfterWrite],
-    [t("Run"), settings.runAfterWrite],
+    [runLabel(settings), settings.runAfterWrite],
     [t("Close port"), settings.closePortAfterWrite],
     [t("Unlock"), settings.unlockReadProtection],
   ];
@@ -85,9 +88,9 @@ function render(state) {
     if (input.type === "checkbox") {
       input.checked = value === true;
     } else if (document.activeElement !== input) {
-      input.value = value ?? "";
+      input.value = value ?? (key === "runMode" ? "hardware-reset" : "");
     }
-    input.disabled = state.running === true;
+    input.disabled = state.running === true || (key === "runMode" && settings.runAfterWrite === false);
   }
 
   for (const button of refs.buttons) {
@@ -102,7 +105,8 @@ function render(state) {
     const title = document.createElement("strong");
     title.textContent = entry.firmware || t("Unknown firmware");
     const meta = document.createElement("span");
-    meta.textContent = [t(entry.success === false ? "Failed" : "Done"), entry.port, resetLabel(entry.resetMode)].filter(Boolean).join(" / ");
+    const run = typeof entry.runAfterWrite === "boolean" ? runLabel(entry) : "";
+    meta.textContent = [t(entry.success === false ? "Failed" : "Done"), entry.port, resetLabel(entry.resetMode), run].filter(Boolean).join(" / ");
     item.append(title, meta);
     return item;
   }));

@@ -4,6 +4,8 @@
 
 本文件说明基于 CH340 系列 USB-UART 桥接芯片的自动下载电路设计、控制线电平约定与复位时序。
 
+0.2.2 预发布 改动已在 CH340C PDM 板上完成部分实机验证，范围见[验证记录](HARDWARE_VALIDATION.md#3-2026-11-08ch340c-pdm-验证)。CH340X、Windows 和 Linux 的本次回归仍待完成。
+
 ---
 
 ## 1. 硬件连接规范
@@ -26,6 +28,8 @@ STM32 通过其系统存储区内置的 ROM USART Bootloader 进行串口烧录�
 > [!NOTE]
 > Node.js `serialport` 库原生接口的布尔语义与上述约定相反。适配层 `src/node-serial-transport.js` 统一负责极性取反，配置文件和核心代码中使用统一的高层约定。
 
+0.2.2 预发布：适配层缓存最近一次成功设置的 `dtr`/`rts` 状态。更新任一控制线时，每次向 `port.set()` 传入两条线的完整状态；打开端口后缓存初始化为库默认的 `true/true`。电平取反规则不变，缓存不代表 MCU 引脚的实测电平。这样可避免省略的字段被库恢复为默认值，参见 [SerialPort Stream API 的 set() 说明](https://serialport.io/docs/api-stream/#set)。
+
 ---
 
 ## 3. CH340C 经典外围电路 (`dtr-low-rts-high`)
@@ -35,19 +39,27 @@ STM32 通过其系统存储区内置的 ROM USART Bootloader 进行串口烧录�
 - **复位控制**：DTR# 经基极限流电阻驱动 NPN 管 Q1，下拉 NRST 产生复位脉冲。
 - **启动控制**：RTS# 配合 PNP 管 Q2 控制 BOOT0 电平。
 - **状态逻辑**：
-  - DTR 与 RTS 处于相同逻辑状态时，三极管截止，MCU 引脚由板载上下拉电阻维持正常状态。
-  - DTR 与 RTS 状态相异时，电路分别触发复位或将 BOOT0 拉高。
+  - RTS 同时连接 Q1 的发射极与 Q2 的基极网络，BOOT0 与 NRST 控制相互关联。
+  - 进入 Bootloader、复位运行和 GO 准备分别使用完整的控制线组合，不能套用两条线独立控制的通用时序。
 
 ![CH340C 自动下载参考电路](assets/ch340c-auto-download.png)
 
 *原始电路参考：[WCH-SoftGroup 原文说明](https://www.cnblogs.com/WCH-SoftGroup/p/16520720.html)。*
 
-### 验证时序参数
+### 代码时序参数
+
 Bootloader 进入流程（`dtr-low-rts-high`）：
-1. RTS 低电平，DTR 低电平；
-2. DTR 产生高电平跳变；
-3. 延时等待约 800 ms，等待 MCU 稳定上电并进入 Bootloader；
+
+1. 请求 `(DTR, RTS) = (false, true)`，等待 100 ms；
+2. 请求 `(true, false)`，等待 100 ms；
+3. 请求 `(false, false)`，等待 800 ms；
 4. 发送 `0x7F` 同步字节。
+
+以上布尔值是核心代码传给 transport 的请求值，取反仍只在 Node 适配层完成。入口明确写出旧实现的有效组合，不再依赖 SerialPort 对省略字段的默认值。
+
+CH340C 硬件复位运行使用 `(DTR, RTS) = (false, true) → (true, false) → (false, true) → (false, true)`，等待分别为 100、100、200 和 800 ms。最终保持 `(false, true)`；GO 前也请求该组合并等待 100 ms。
+
+通用预设和自定义映射仍按 `boot0Low` 与 `resetAssert` 的反值设置最终运行态。现有等待时间保留；控制线请求值不代表 MCU 引脚的实测电平。
 
 ---
 
@@ -72,14 +84,33 @@ CH340X 具备专用的 Modem 控制特性，可省去外部三极管，直接通
 
 - **进入 Bootloader**：
   - 状态依次为：`(RTS, DTR) = (false, true) → (true, true) → (true, false) → (true, true)`
-  - 稳定延时约 1000 ms，随后发送同步字节 `0x7F`。
+  - 各状态等待依次为 150、150、150 和 1000 ms，随后发送同步字节 `0x7F`。
 - **复位运行用户程序**：
-  - 状态依次为：`(false, false) → (false, true) → (false, false)`
-  - 释放 NRST，MCU 从 Flash 启动执行。
+  - 0.2.2 预发布修正为 `(RTS, DTR) = (true, false) → (false, false) → (true, false)`。DTR 保持 BOOT0 运行态，RTS 产生复位脉冲并保持释放终态。
+  - 各状态等待依次为 250、250 和 1000 ms，目的是释放 NRST 并从 Flash 启动；是否运行须实机观察。
+
+CH340X 进入 Bootloader 的组合及等待时间保留，此前已由用户测试。本次仅调整结束复位与 GO 准备；复位等待仍为 250、250 和 1000 ms，新终态尚待实机回归。
+
+根据上述参考电路和 [WCH 下载说明](https://www.cnblogs.com/WCH-SoftGroup/p/16520720.html)，RTS 接 NRST，增强 DTR 接 BOOT0。旧结束时序固定 RTS、切换 DTR，未按接线对 NRST 产生脉冲；修正后固定 DTR、切换 RTS。以上为控制线请求，仍需实测 MCU 引脚。
 
 ---
 
-## 5. 关键调试与排查要点
+## 5. GO 前的控制线准备（0.2.2 预发布）
+
+`runMode=go` 调用 `prepareForGo()`，不会复用硬件复位运行时序：
+
+| 复位模式 | GO 前的处理 |
+| --- | --- |
+| CH340C 经典电路 | 请求 `(DTR, RTS) = (false, true)`，等待 100 ms；DTR 保持入口结束状态，不发复位脉冲 |
+| 通用预设、自定义映射 | 同时请求配置的 `boot0Low` 和复位释放态，等待 100 ms，不发复位脉冲 |
+| `ch340x` | 请求 `(RTS, DTR) = (true, false)`，等待 250 ms；RTS 保持入口结束状态，只恢复 DTR 运行态，不发复位脉冲 |
+| `none` | 保留当前控制线，启动条件由用户管理 |
+
+`ch340x` 下，GO 准备和硬件复位均以 `(RTS, DTR) = (true, false)` 结束。`none` 下，正常启动条件仍由用户管理。GO 使用本次烧录地址，要求该处有有效向量表；ACK 不证明应用已运行，失败也不会自动回退到硬件复位。详见[使用手册](USAGE.md)。
+
+`runAfterWrite=false` 仅跳过运行步骤。`runMode=hardware-reset` 配合 `resetMode=none` 时也不自动运行，日志明确提示需要手动复位。
+
+## 6. 关键调试与排查要点
 
 - **同步字节超时 (`0x7F` Timeout)**：
   - 通常是 MCU 未能成功进入 Bootloader。首先检查供电、共地以及 BOOT0/NRST 引脚接线。
@@ -87,6 +118,6 @@ CH340X 具备专用的 Modem 控制特性，可省去外部三极管，直接通
 - **收到持续乱码或用户程序输出**：
   - 说明自动下载电路未能打断用户程序运行，需用示波器或逻辑分析仪测量复位脉冲与 BOOT0 电平保持时间。
 - **烧录完成后板卡不运行**：
-  - CH340X 直连电路在串口连接持续打开时，控制引脚可能维持在复位或 BOOT 状态。插件默认开启 `closePortAfterWrite`，在烧录完成后自动关闭端口释放引脚。
+  - 检查运行方式、GO 地址与向量表，并测量 BOOT0/NRST。插件默认开启 `closePortAfterWrite`，但端口关闭后的电平取决于驱动、桥接芯片和板上电路，不能保证释放复位、启动应用或阻止跳转。即使使用 `none` 或跳过运行，开关端口也可能影响引脚。按[硬件验证模板](HARDWARE_VALIDATION.md) 做关闭串口 A/B 对照。
 - **全片擦除长等待**：
   - 大容量 STM32（如 High-density / XL-density）全片擦除耗时可能达到数十秒。协议层为此设置了 60 秒的专用超时窗口。

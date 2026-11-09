@@ -33,7 +33,7 @@
 ### 烧录与芯片控制
 | 命令 | 说明 |
 | --- | --- |
-| `Flash Latest Firmware` | 核心烧录命令。优先使用已配置/记忆固件，否则触发自动发现；随后执行擦除、写入、校验与复位运行 |
+| `Flash Latest Firmware` | 优先使用已配置/记忆固件，否则触发自动发现；随后按设置执行擦除、写入、校验与运行步骤 |
 | `Flash Current File` | 将当前活动编辑器或右键选中的 `.hex` / `.bin` 文件设为固件并立即烧录 |
 | `Cancel Flash` | 请求中断当前烧录流程（在传输检查点处安全停止） |
 | `Verify Firmware` | 连接 Bootloader，读回 Flash 内容并与当前固件逐字节比对 |
@@ -112,8 +112,9 @@
 | `timeout` | `number` | `2000` | 常规串口操作超时（毫秒） |
 | `eraseBeforeWrite` | `boolean` | `true` | 写入前执行全片擦除 |
 | `verifyAfterWrite` | `boolean` | `true` | 写入后读回校验 |
-| `runAfterWrite` | `boolean` | `true` | 写入并校验成功后发送复位时序运行程序 |
-| `closePortAfterWrite` | `boolean` | `true` | 流程结束后关闭串口（防止 DTR/RTS 持续影响板卡运行） |
+| `runAfterWrite` | `boolean` | `true` | 写入及可选校验成功后执行运行步骤；`false` 跳过运行 |
+| `runMode` | `string` | `"hardware-reset"` | 0.2.2 预发布：`hardware-reset` 或 `go`；仅在 `runAfterWrite=true` 时执行 |
+| `closePortAfterWrite` | `boolean` | `true` | 流程结束后关闭串口；关闭后的引脚状态取决于驱动和电路 |
 | `unlockReadProtection` | `boolean` | `false` | 擦除遇 NACK 时尝试解除读保护（**会清空整片 Flash**） |
 | `autoDiscoverFirmware` | `boolean` | `true` | 是否在未指定固件时自动检索工作区 |
 | `firmwareGlobs` | `array` | `["**/*.hex", "**/*.bin"]` | 固件检索匹配模式列表 |
@@ -129,9 +130,33 @@
   "serialFlash.baudRate": 115200,
   "serialFlash.eraseBeforeWrite": true,
   "serialFlash.verifyAfterWrite": true,
-  "serialFlash.runAfterWrite": true
+  "serialFlash.runAfterWrite": true,
+  "serialFlash.runMode": "hardware-reset"
 }
 ```
+
+### 烧录后运行方式（0.2.2 预发布）
+
+`runMode` 在 0.2.2 预发布版本中提供。CH340C PDM 板的本次实机范围见[验证记录](HARDWARE_VALIDATION.md#3-2026-11-08ch340c-pdm-验证)。面板可选择“硬件复位”或“Bootloader GO 跳转”；关闭“成功后运行”后，该选择不可用。
+
+| 设置组合 | 烧录后的动作 |
+| --- | --- |
+| `runAfterWrite=false` | 跳过硬件复位和 GO，日志为 `Run skipped`；面板显示“不运行” |
+| `runAfterWrite=true`，`runMode=hardware-reset` | 默认方式，按 `resetMode` 发送复位时序；日志仅确认时序已发送 |
+| 上一组合且 `resetMode=none` | 不自动运行，日志为 `Run skipped: manual reset required`；需手动恢复启动条件并复位 |
+| `runAfterWrite=true`，`runMode=go` | 写入及可选校验成功后发送 GO，不发送硬件复位脉冲 |
+
+GO 使用本次解析后的烧录地址：显式 `flashAddress` 优先，否则使用 HEX 文件基地址或 BIN 默认 `0x08000000`。该地址必须放置有效的应用向量表，固件也须按该地址链接并正确配置向量表。仅修改烧录地址不会重定位固件。
+
+流程在擦除前检查 GET 返回的命令列表。若不支持 GO，则终止本次烧录；可手动选择 `hardware-reset` 或关闭“成功后运行”后重试。GO 返回 NACK 或超时时，不自动回退到硬件复位。
+
+GO 前，CH340C 经典预设请求 `(DTR, RTS) = (false, true)`；通用预设及自定义映射使用 `boot0Low` 与复位释放态，均等待 100 ms。`ch340x` 请求 `(RTS, DTR) = (true, false)` 并等待 250 ms，只恢复 BOOT0 运行条件，保持入口结束时的 RTS 状态；`none` 不改变控制线，正常启动条件由用户管理。详见[硬件说明](CH340_HARDWARE.md)。
+
+`GO command acknowledged: …; application execution not confirmed` 仅表示收到协议应答。硬件复位日志同样不证明应用已运行，须另查 LED、串口应用输出或其他可观察行为。GO 协议见 [AN3155](https://www.st.com/resource/en/application_note/an3155-usart-protocol-used-in-the-stm32-bootloader-stmicroelectronics.pdf) 的 Go command 一节。
+
+`closePortAfterWrite` 独立控制流程结束后的串口关闭；失败时仍会关闭串口。关闭端口不保证 BOOT0/NRST 电平，也不保证应用启动或阻止跳转。“不运行”仅表示跳过插件的运行步骤。按[硬件验证模板](HARDWARE_VALIDATION.md) 对比保持端口开启与关闭后的实际表现。
+
+`Create Project Config` 和命名 Profile 保存 `runMode`；新烧录历史记录运行选择，但不作为应用运行证据。独立的 `Reset And Run` 命令和 `run` 任务仍执行硬件复位，不使用烧录后的 `runMode`。
 
 ---
 
@@ -151,7 +176,7 @@
 | `dtr-low-rts-high` | DTR 低电平拉复位，RTS 高电平拉 BOOT | 采用经典 NPN/PNP 双三极管的 CH340C/CH340G 下载电路 |
 | `ch340x` | 专用 RTS/DTR 脉冲时序 | CH340X 直连电路（RTS# 接 NRST，增强 DTR 接 BOOT0） |
 | `dtr-high-rts-low` | DTR 高电平复位，RTS 低电平 BOOT | 部分反向逻辑或光耦隔离的自动下载模块 |
-| `none` | 扩展不操作控制线 | 手动按板上 BOOT 键并按复位键，纯串口数据烧录 |
+| `none` | 扩展不发送控制线时序；端口开关仍受驱动影响 | 手动按板上 BOOT 键并按复位键，纯串口数据烧录 |
 | `custom` | 允许用户指定控制线映射 | 特殊或自定义自动下载电路 |
 
 ### 自定义复位配置示例
@@ -252,5 +277,5 @@
 | **持续收到乱码或应用数据** | 复位时序未生效，芯片仍运行原有程序 | 检查自动复位电路三极管/MOS管工作状态，核对 DTR/RTS 信号波形 |
 | **返回 NACK (`0x1F`)** | 目标命令不被芯片支持，或处于读保护状态 | 1. 检查目标型号在 [AN2606](https://www.st.com/resource/en/application_note/an2606-stm32-microcontroller-system-memory-boot-mode-stmicroelectronics.pdf) 中的协议说明；<br>2. 若开启了读保护，可执行 `Unlock Read Protection`（注意将清空 Flash） |
 | **校验失败 (Verify mismatch)** | 写入地址错误或擦除未完成 | 核对链接脚本中的 Flash 起始地址；确认 `eraseBeforeWrite` 为开启状态 |
-| **写入完成后程序不运行** | BOOT0 仍被拉高，或未退出复位 | 检查 `closePortAfterWrite` 是否开启；CH340X 直连电路在端口保持开启时可能持续拉低 NRST |
+| **写入完成后程序不运行** | 跳过运行、启动条件不符，或 GO 地址/向量表不匹配 | 核对 `runAfterWrite`、`runMode` 与 `resetMode`；区分命令 ACK 和应用运行证据；测量 BOOT0/NRST 并做关闭串口 A/B 对照 |
 | **Remote 模式下找不到本地串口** | 扩展运行在远程主机，无法枚举本地设备 | 确认 USB 转串口插入的物理机器与 VS Code 扩展宿主一致 |

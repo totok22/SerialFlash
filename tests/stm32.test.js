@@ -63,3 +63,14 @@ test("go sends command and address packet", async () => {
     [0x08, 0x00, 0x00, 0x00, 0x08],
   ]);
 });
+
+test("cancellation while awaiting GO command ACK prevents the jump address", async () => {
+  const controller = new AbortController();
+  const writes = [];
+  const bootloader = new Stm32Bootloader({
+    write: async (bytes) => writes.push(Array.from(bytes)),
+    readExact: async () => { controller.abort(); return new Uint8Array([0x79]); },
+  });
+  await assert.rejects(bootloader.go(0x08000000, { signal: controller.signal }), /cancelled/);
+  assert.deepEqual(writes, [[0x21, 0xde]]);
+});

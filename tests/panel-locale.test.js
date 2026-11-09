@@ -37,6 +37,8 @@ function webview(language) {
   const input = new Element();
   input.dataset.setting = "customReset.boot0High";
   input.value = "dtr-true";
+  const runMode = get("runModeInput");
+  runMode.dataset.setting = "runMode";
   const buttons = [new Element(), new Element(), new Element()];
   buttons[0].dataset.action = "flash";
   buttons[1].dataset = { action: "output", allowRunning: "true" };
@@ -50,7 +52,7 @@ function webview(language) {
       getElementById: get,
       createElement: () => new Element(),
       querySelector: () => get("progress"),
-      querySelectorAll: (selector) => selector === "[data-setting]" ? [input] : buttons,
+      querySelectorAll: (selector) => selector === "[data-setting]" ? [input, runMode] : buttons,
     },
     window: { addEventListener: (_, listener) => { receive = listener; } },
   });
@@ -119,6 +121,40 @@ for (const language of ["en", "zh-TW"]) {
         assert.doesNotMatch(view.get(id).textContent, /[\u3400-\u9fff]/);
       }
     }
+  });
+}
+
+for (const language of ["en", "zh-CN"]) {
+  test(`webview renders and saves run mode and No Run in ${language}`, () => {
+    const view = webview(language);
+    const t = createTranslator(language);
+    const select = view.get("runModeInput");
+    view.render({ settings: { runAfterWrite: true } });
+    assert.equal(select.value, "hardware-reset");
+    assert.equal(select.disabled, false);
+    assert.equal(view.get("optionPills").children[2].textContent, t("Hardware reset"));
+    select.value = "go";
+    select.listeners.change();
+    assert.deepEqual(JSON.parse(JSON.stringify(view.sent.at(-1))), {
+      type: "action", action: "saveSetting", key: "runMode", value: "go",
+    });
+    for (const runMode of ["hardware-reset", "go"]) {
+      for (const runAfterWrite of [true, false]) {
+        const settings = { runMode, runAfterWrite };
+        const label = t(runAfterWrite ? runMode === "go" ? "Bootloader GO" : "Hardware reset" : "No Run");
+        view.render({ settings, history: [{ firmware: "app.hex", ...settings }] });
+        assert.equal(select.value, runMode);
+        assert.equal(select.disabled, !runAfterWrite);
+        const pill = view.get("optionPills").children[2];
+        assert.equal(pill.textContent, label);
+        assert.equal(pill.title, `${label}: ${t(runAfterWrite ? "Enabled" : "Disabled")}`);
+        assert.equal(view.get("history").children[0].children[1].textContent, `${t("Done")} / ${label}`);
+        view.render({ running: true, settings });
+        assert.equal(select.disabled, true);
+      }
+    }
+    view.render({ history: [{ firmware: "legacy.hex" }] });
+    assert.equal(view.get("history").children[0].children[1].textContent, t("Done"), "legacy history does not invent a run mode");
   });
 }
 

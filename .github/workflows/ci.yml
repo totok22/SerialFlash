@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Validate release channel
+        id: channel
+        run: node .github/scripts/release-channel.mjs
       - name: Install locked dependencies
         run: npm ci
       - name: Run unit tests
@@ -45,7 +48,13 @@ jobs:
       - name: Check native serialport binding
         run: node tests/native-binding-smoke.mjs
       - name: Package platform-specific extension
-        run: npx --yes @vscode/vsce@4.0.0 package --target ${{ matrix.target }} --out serialflash-stm32-${{ matrix.target }}.vsix
+        shell: bash
+        env:
+          PRE_RELEASE: ${{ steps.channel.outputs.pre_release }}
+        run: |
+          flags=()
+          if [[ "$PRE_RELEASE" == "true" ]]; then flags+=(--pre-release); fi
+          npx --yes @vscode/vsce@4.0.0 package --target ${{ matrix.target }} "${flags[@]}" --out serialflash-stm32-${{ matrix.target }}.vsix
       - uses: actions/upload-artifact@v4
         with:
           name: vsix-${{ matrix.target }}
@@ -67,9 +76,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Require tag to match manifest version
-        run: |
-          node -e 'const version = require("./package.json").version; const tag = process.env.GITHUB_REF_NAME; if (tag !== "v" + version) { console.error("Tag " + tag + " does not match package.json version " + version); process.exit(1); }'
+      - name: Validate release channel
+        id: channel
+        run: node .github/scripts/release-channel.mjs
       - uses: actions/download-artifact@v4
         with:
           pattern: vsix-*
@@ -78,11 +87,15 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRE_RELEASE: ${{ steps.channel.outputs.pre_release }}
         run: |
+          flags=()
+          if [[ "$PRE_RELEASE" == "true" ]]; then flags+=(--prerelease --latest=false); fi
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --prerelease="$PRE_RELEASE"
             gh release upload "$GITHUB_REF_NAME" dist/*.vsix --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.vsix --verify-tag --title "SerialFlash $GITHUB_REF_NAME" --generate-notes
+            gh release create "$GITHUB_REF_NAME" dist/*.vsix --verify-tag --title "SerialFlash $GITHUB_REF_NAME" --generate-notes "${flags[@]}"
           fi
       - name: Check Entra federation configuration
         env:
@@ -100,4 +113,9 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
       - name: Publish to VS Code Marketplace
-        run: npx --yes @vscode/vsce@4.0.0 publish --azure-credential --packagePath dist/*.vsix --skip-duplicate
+        env:
+          PRE_RELEASE: ${{ steps.channel.outputs.pre_release }}
+        run: |
+          flags=()
+          if [[ "$PRE_RELEASE" == "true" ]]; then flags+=(--pre-release); fi
+          npx --yes @vscode/vsce@4.0.0 publish --azure-credential --packagePath dist/*.vsix --skip-duplicate "${flags[@]}"

@@ -101,6 +101,7 @@ test("panel action messages dispatch to controller", async () => {
   await panel.handleMessage({ type: "action", action: "selectPort" });
   await panel.handleMessage({ type: "action", action: "diagnostics" });
   await panel.handleMessage({ type: "action", action: "saveSetting", key: "baudRate", value: 57600 });
+  await panel.handleMessage({ type: "action", action: "saveSetting", key: "runMode", value: "go" });
   await panel.handleMessage({ type: "action", action: "createProfile" });
 
   assert.deepEqual(controller.calls, [
@@ -109,6 +110,7 @@ test("panel action messages dispatch to controller", async () => {
     ["selectPort", true],
     ["diagnostics"],
     ["saveSetting", "baudRate", 57600],
+    ["saveSetting", "runMode", "go"],
     ["createProfile"],
   ]);
 });
@@ -127,6 +129,18 @@ test("panel includes troubleshooting output area", () => {
 
   assert.match(html, /<h2>Troubleshooting<\/h2>/);
   assert.match(html, /<ul id="troubleshooting"><\/ul>/);
+});
+
+test("panel includes a labeled run mode selector and retains the run checkbox", () => {
+  const html = makeHtmlPanel("en").html();
+  assert.match(html, /<label>\s*<span>Run mode<\/span>\s*<select id="runModeInput" data-setting="runMode">/);
+  assert.match(html, /<option value="hardware-reset">Hardware reset<\/option>/);
+  assert.match(html, /<option value="go">Bootloader GO<\/option>/);
+  assert.match(html, /type="checkbox" data-setting="runAfterWrite"/);
+  const chinese = makeHtmlPanel("zh-CN").html();
+  assert.match(chinese, /<span>运行方式<\/span>/);
+  assert.match(chinese, /<option value="hardware-reset">硬件复位<\/option>/);
+  assert.match(chinese, /<option value="go">Bootloader GO 跳转<\/option>/);
 });
 
 test("panel groups advanced and dangerous controls", () => {

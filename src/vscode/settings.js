@@ -64,6 +64,7 @@ export function readFlashSettings(vscode, context) {
     eraseBeforeWrite: boolSetting(config.get("eraseBeforeWrite"), true),
     verifyAfterWrite: boolSetting(config.get("verifyAfterWrite"), true),
     runAfterWrite: boolSetting(config.get("runAfterWrite"), true),
+    runMode: config.get("runMode") || "hardware-reset",
     closePortAfterWrite: boolSetting(config.get("closePortAfterWrite"), true),
     unlockReadProtection: boolSetting(config.get("unlockReadProtection"), false),
     autoDiscoverFirmware: boolSetting(config.get("autoDiscoverFirmware"), true),
@@ -118,6 +119,7 @@ export function flashSettingsKeys() {
     "eraseBeforeWrite",
     "verifyAfterWrite",
     "runAfterWrite",
+    "runMode",
     "closePortAfterWrite",
     "unlockReadProtection",
   ];

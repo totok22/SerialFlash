@@ -334,6 +334,7 @@ export class SerialFlashController {
     this.output.append(`Firmware: ${candidate.relativePath}, ${firmware.format.toUpperCase()}, ${firmware.bytes.length} bytes`);
     this.output.append(`Port: ${port} @ ${settings.baudRate} 8${settings.parity === "even" ? "E" : "N"}1`);
     this.output.append(`Reset: ${settings.resetMode}`);
+    this.output.append(`Run: ${settings.runAfterWrite ? settings.runMode : "No Run"}`);
     const resetConfig = resolveResetConfig(settings);
 
     const transport = await createSerialTransport(port, {
@@ -359,6 +360,7 @@ export class SerialFlashController {
         erase: settings.eraseBeforeWrite,
         verify: settings.verifyAfterWrite,
         run: settings.runAfterWrite,
+        runMode: settings.runMode,
         unlock: settings.unlockReadProtection,
         close: settings.closePortAfterWrite,
         signal: this.abortController.signal,
@@ -372,6 +374,8 @@ export class SerialFlashController {
       await rememberSuccessfulFlash(this.vscode, this.context, activeSettings);
       await recordFlashHistory(this.context, {
         success: true,
+        runAfterWrite: settings.runAfterWrite,
+        runMode: settings.runMode,
         firmware: candidate.relativePath,
         port,
         resetMode: settings.resetMode,
@@ -387,6 +391,8 @@ export class SerialFlashController {
     } catch (error) {
       await recordFlashHistory(this.context, {
         success: false,
+        runAfterWrite: settings.runAfterWrite,
+        runMode: settings.runMode,
         firmware: candidate.relativePath,
         port,
         resetMode: settings.resetMode,

@@ -109,8 +109,11 @@ export class Stm32Bootloader {
     await this.expectAck(15000);
   }
 
-  async go(address) {
+  async go(address, { signal } = {}) {
+    if (signal?.aborted) throw new Error("Flash cancelled");
     await this.sendCommand(COMMANDS.GO);
+    // The address commits the jump; cancellation after that cannot undo execution.
+    if (signal?.aborted) throw new Error("Flash cancelled");
     await this.transport.write(addressPacket(address));
     await this.expectAck();
   }

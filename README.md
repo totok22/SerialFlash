@@ -16,6 +16,7 @@ Paired with a USB-UART bridge and an auto-reset circuit, a single USB-C cable ha
 - **Multiple Interfaces**: Interactive Webview panel, Activity Bar sidebar, Command Palette, editor context menus, and status bar integration.
 - **Automatic Firmware Discovery**: Scans workspace build folders, filters out compiler probe artifacts (such as `CMakeFiles`), and parses Intel HEX base addresses or raw binaries.
 - **Hardware Reset Modes**: Built-in presets for CH340C and CH340X auto-download circuits, manual bootloader entry, and configurable DTR/RTS pin mappings.
+- **Post-flash Run Mode (0.2.2 pre-release)**: `runMode` selects `hardware-reset` (default) or bootloader `go`; `runAfterWrite: false` skips the run step. See [run behavior and limits](docs/USAGE.en.md). Command completion does not confirm that the application is running; see the [tested hardware scope](docs/HARDWARE_VALIDATION.md).
 - **State Persistence & Profiles**: Remembers last-used serial settings; supports named project profiles for different boards and build targets.
 - **VS Code Tasks Integration**: Contributes a task provider to chain build and flash steps into a single automated workflow.
 - **Diagnostics & Output Logs**: Integrated diagnostics for serial enumeration and extension host status, complete with detailed operation logs.
@@ -31,7 +32,7 @@ code --install-extension totok22.serialflash-stm32
 ```
 
 > [!NOTE]
-> The published Marketplace release is **0.2.1**. The bilingual panel and expanded documentation are documented in [CHANGELOG.md](CHANGELOG.md). For local builds and debugging, see [CONTRIBUTING.en.md](CONTRIBUTING.en.md).
+> The stable Marketplace release is **0.2.1**. The bilingual panel and expanded documentation are documented in [CHANGELOG.md](CHANGELOG.md). To test **0.2.2**, select **Switch to Pre-Release Version** in the extension details. For local builds and debugging, see [CONTRIBUTING.en.md](CONTRIBUTING.en.md).
 
 ---
 
@@ -66,7 +67,7 @@ Ensure the MCU breaks out the USART pins supported by its system ROM bootloader 
 | --- | --- |
 | `dtr-low-rts-high` | **CH340C classic circuit** (transistor-based BOOT0/RESET control; default) |
 | `ch340x` | **CH340X direct circuit** (using RTS# and enhanced DTR control lines) |
-| `none` | **Manual mode** (toggle BOOT0 and reset buttons manually; DTR/RTS lines idle) |
+| `none` | **Manual mode** (toggle BOOT0 and reset buttons manually; no extension-driven control-line sequence) |
 | `dtr-high-rts-low` | **Generic reversed preset** (DTR high asserts reset, RTS low sets boot) |
 | `custom` | **Custom mode** (manually configure DTR/RTS assert/deassert states) |
 

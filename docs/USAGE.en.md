@@ -33,7 +33,7 @@ Press `Cmd/Ctrl+Shift+P` and type `SerialFlash:` to filter contributed commands:
 ### Flashing & Chip Operations
 | Command | Description |
 | --- | --- |
-| `Flash Latest Firmware` | Primary flash action. Uses the configured/remembered firmware or auto-discovers one, then erases, writes, verifies, and resets to run |
+| `Flash Latest Firmware` | Uses the configured/remembered firmware or auto-discovers one, then follows the erase, write, verify, and run settings |
 | `Flash Current File` | Sets the currently active or right-clicked `.hex` / `.bin` as active firmware and flashes immediately |
 | `Cancel Flash` | Requests cancellation of the ongoing flash sequence (safely halts at the next checkpoint) |
 | `Verify Firmware` | Connects to the bootloader, reads back flash memory, and compares it byte-for-byte with the active firmware |
@@ -112,8 +112,9 @@ All settings keys begin with `serialFlash.`. They can be edited in User or Works
 | `timeout` | `number` | `2000` | General serial operation timeout in milliseconds |
 | `eraseBeforeWrite` | `boolean` | `true` | Performs full chip erase prior to programming |
 | `verifyAfterWrite` | `boolean` | `true` | Reads back flash memory and compares byte-for-byte after programming |
-| `runAfterWrite` | `boolean` | `true` | Drives reset sequence to boot user firmware after successful flash |
-| `closePortAfterWrite` | `boolean` | `true` | Closes serial port when finished (prevents DTR/RTS lines holding reset) |
+| `runAfterWrite` | `boolean` | `true` | Performs the run step after writing and optional verification succeed; `false` skips it |
+| `runMode` | `string` | `"hardware-reset"` | 0.2.2 pre-release: `hardware-reset` or `go`; used only when `runAfterWrite=true` |
+| `closePortAfterWrite` | `boolean` | `true` | Closes the port when finished; resulting pin states depend on the driver and circuit |
 | `unlockReadProtection` | `boolean` | `false` | Automatically attempts readout unprotect on erase NACK (**erases all Flash**) |
 | `autoDiscoverFirmware` | `boolean` | `true` | Scans workspace when no firmware path is specified |
 | `firmwareGlobs` | `array` | `["**/*.hex", "**/*.bin"]` | Glob patterns included in firmware search |
@@ -129,9 +130,33 @@ All settings keys begin with `serialFlash.`. They can be edited in User or Works
   "serialFlash.baudRate": 115200,
   "serialFlash.eraseBeforeWrite": true,
   "serialFlash.verifyAfterWrite": true,
-  "serialFlash.runAfterWrite": true
+  "serialFlash.runAfterWrite": true,
+  "serialFlash.runMode": "hardware-reset"
 }
 ```
+
+### Post-flash Run Mode (0.2.2 pre-release)
+
+`runMode` is available in the 0.2.2 pre-release. See the [CH340C PDM validation record](HARDWARE_VALIDATION.md#3-2026-11-08ch340c-pdm-验证) for the tested scope. The panel offers Hardware reset or Bootloader GO; disabling Run after success disables this selector.
+
+| Settings | Post-flash action |
+| --- | --- |
+| `runAfterWrite=false` | Skips both hardware reset and GO; logs `Run skipped` and shows No Run |
+| `runAfterWrite=true`, `runMode=hardware-reset` | Default: sends the sequence selected by `resetMode`; the log confirms only that the sequence was sent |
+| Above settings with `resetMode=none` | No automatic run; logs `Run skipped: manual reset required`. Restore normal boot conditions and reset manually |
+| `runAfterWrite=true`, `runMode=go` | Sends GO after writing and optional verification succeed, without a hardware reset pulse |
+
+GO uses the resolved flash address: explicit `flashAddress` first, otherwise the HEX base address or BIN default `0x08000000`. A valid application vector table must be present there; firmware must be linked for that location and configure its vector table correctly. Changing the flash address does not relocate firmware.
+
+Before erase, the workflow checks the GET command list for GO support. Missing support aborts flashing; select `hardware-reset` or disable Run after success before retrying. A GO NACK or timeout does not trigger an automatic hardware-reset fallback.
+
+Before GO, classic CH340C requests `(DTR, RTS) = (false, true)`; generic presets and custom mappings request `boot0Low` with reset deasserted. Both wait 100 ms. `ch340x` requests `(RTS, DTR) = (true, false)` and waits 250 ms, restoring BOOT0 run conditions while keeping RTS at its entry-end state. `none` leaves control lines unchanged; the user manages boot conditions. See [hardware details](CH340_HARDWARE.en.md).
+
+`GO command acknowledged: …; application execution not confirmed` confirms only a protocol response. Hardware-reset logs also do not prove application execution: check an LED, application serial output, or another observable behavior. See the Go command section of [AN3155](https://www.st.com/resource/en/application_note/an3155-usart-protocol-used-in-the-stm32-bootloader-stmicroelectronics.pdf) for the protocol.
+
+`closePortAfterWrite` independently controls closing the port at completion; failures still close it. Closing guarantees neither BOOT0/NRST levels nor application startup or prevention of a jump. No Run only skips the extension's run step. Compare open-port and closed-port behavior using the [hardware validation template](HARDWARE_VALIDATION.md).
+
+`Create Project Config` and named profiles save `runMode`. New flash history entries record the run selection, not proof of application execution. The separate `Reset And Run` command and `run` task still perform hardware reset and do not use post-flash `runMode`.
 
 ---
 
@@ -151,7 +176,7 @@ The extension defines control states as:
 | `dtr-low-rts-high` | DTR low asserts reset; RTS high pulls BOOT0 | Classic dual-transistor (NPN + PNP) CH340C/CH340G auto-download circuit |
 | `ch340x` | Dedicated RTS/DTR pulse sequence | Direct CH340X circuit (RTS# to NRST, enhanced DTR to BOOT0) |
 | `dtr-high-rts-low` | DTR high asserts reset; RTS low pulls BOOT0 | Inverted logic / optocoupler-isolated auto-reset adapters |
-| `none` | Extension leaves control lines untouched | Manual mode (press BOOT0 + RST buttons on board) |
+| `none` | No extension-driven control-line sequence; opening/closing remains driver-dependent | Manual mode (press BOOT0 + RST buttons on board) |
 | `custom` | User-defined line mappings | Custom or non-standard auto-reset circuits |
 
 ### Custom Reset Configuration Example
@@ -252,6 +277,6 @@ When encountering issues, run `SerialFlash: Show Output` for detailed handshake 
 | **Continuous garbage / app output** | Auto-reset sequence did not trigger bootloader | Check transistor/MOSFET wiring and verify DTR/RTS timing and pulse width |
 | **Command NACK (`0x1F`)** | Command unsupported or chip is read-protected | 1. Check supported commands for your MCU in [AN2606](https://www.st.com/resource/en/application_note/an2606-stm32-microcontroller-system-memory-boot-mode-stmicroelectronics.pdf);<br>2. If read-protected, run `Unlock Read Protection` (note: erases entire Flash) |
 | **Verify mismatch** | Wrong flash address or incomplete erase | Verify linker script Flash start address; ensure `eraseBeforeWrite` is enabled |
-| **Board does not run after flash** | BOOT0 held high or NRST held low | Ensure `closePortAfterWrite` is enabled; direct CH340X circuits may hold NRST low if the port remains open |
+| **Board does not run after flash** | Run skipped, incorrect boot conditions, or GO address/vector mismatch | Check `runAfterWrite`, `runMode`, and `resetMode`; distinguish command ACK from application evidence; measure BOOT0/NRST and compare port-close A/B results |
 | **Local port not visible in Remote** | Extension runs on remote host, not local client | Confirm physical USB device is plugged into the machine running the extension host |
 

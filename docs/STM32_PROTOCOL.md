@@ -44,7 +44,7 @@
 | `0x00` | **GET** | 获取 Bootloader 版本及所支持的全部命令列表 |
 | `0x02` | **GET ID** | 读取 MCU 产品 ID (PID) |
 | `0x11` | **READ MEMORY** | 从指定地址读回数据（用于固件写入后校验） |
-| `0x21` | **GO** | 从指定地址启动并执行代码 |
+| `0x21` | **GO** | 请求从指定应用向量表启动代码；ACK 不证明应用已运行 |
 | `0x31` | **WRITE MEMORY** | 分块写入数据至 Flash（单包最大 256 字节） |
 | `0x43` | **ERASE** | 标准全片或按页擦除（用于部分较老型号） |
 | `0x44` | **EXTENDED ERASE** | 扩展擦除（双字节扇区索引或 `0xFFFF` 特殊全片擦除） |
@@ -53,6 +53,8 @@
 ---
 
 ## 5. 交互时序流程
+
+0.2.2 预发布：烧录流程新增 `runMode`。默认 `hardware-reset`；`go` 在擦除前检查 GET 返回的命令列表是否包含 `0x21`，不支持时终止。`runAfterWrite=false` 跳过运行；手动复位模式配合 `hardware-reset` 时也跳过自动运行，并提示手动复位。
 
 ```text
 Host                                  STM32 ROM Bootloader
@@ -68,6 +70,8 @@ Host                                  STM32 ROM Bootloader
   |--- GET ID (0x02, 0xFD) ------------------->|
   |<-- ACK + PID ------------------------------|
   |                                            |
+  |    (GO 运行模式) 检查 GET 的 GO 支持情况     |
+  |                                            |
   |--- (可选) ERASE / EXTENDED ERASE ---------->|
   |<-- ACK (等待最多 60s) ----------------------|
   |                                            |
@@ -77,5 +81,15 @@ Host                                  STM32 ROM Bootloader
   |--- (可选) READ MEMORY 读回校验 ------------>|
   |<-- ACK + Memory Data ----------------------|
   |                                            |
-  |--- 复位并运行 (DTR/RTS 硬件时序或 GO 命令) ->|
+  |--- (可选) 硬件复位时序或 GO 请求 ---------->|
 ```
+
+## 6. GO 地址与应答边界（0.2.2 预发布）
+
+GO 的帧顺序为 `[0x21, 0xDE]`、ACK、4 字节地址加异或校验、ACK。按 [AN3155 的 Go command 说明](https://www.st.com/resource/en/application_note/an3155-usart-protocol-used-in-the-stm32-bootloader-stmicroelectronics.pdf)，目标地址应是应用向量表基址，包含初始栈指针与复位处理函数地址；应用须正确配置向量表。
+
+插件发送本次解析后的烧录地址：显式 `flashAddress` 优先，否则使用 HEX 基地址或 BIN 默认 `0x08000000`。该处必须有有效向量表；设置覆盖地址不会重定位固件，也不等于已验证向量表有效。
+
+发送前，`prepareForGo()` 对 CH340C 经典预设请求 `(DTR, RTS) = (false, true)`；对通用预设及自定义映射请求 `boot0Low` 和复位释放态，均等待 100 ms。`ch340x` 请求 `(RTS, DTR) = (true, false)`，等待 250 ms；RTS 保持入口结束状态，不发复位脉冲。`none` 保持控制线，启动条件由用户管理。CH340X 入口及硬件复位等待时间保留，结束复位改为固定 DTR 并切换 RTS，详见[硬件说明](CH340_HARDWARE.md)。
+
+日志仅确认 GO 已应答或硬件复位时序已发送，不能证明应用已执行。GO 失败不自动回退到硬件复位；关闭串口后的引脚状态取决于驱动和电路，也不保证应用启动或阻止跳转。须另行观察应用行为，按[硬件验证模板](HARDWARE_VALIDATION.md) 记录。

@@ -1,5 +1,5 @@
-import { enterBootloader, resetToRun, bootloaderEntryStages } from "./reset-timing.js";
-import { ACK, NACK, SYNC, Stm32Bootloader, toHex } from "../stm32.js";
+import { enterBootloader, resetToRun, prepareForGo, bootloaderEntryStages } from "./reset-timing.js";
+import { ACK, NACK, SYNC, COMMANDS, Stm32Bootloader, toHex } from "../stm32.js";
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -91,6 +91,7 @@ export async function flashStm32Uart({
   erase = true,
   verify = true,
   run = true,
+  runMode = "hardware-reset",
   unlock = false,
   close = true,
   onLog = defaultLog,
@@ -99,6 +100,7 @@ export async function flashStm32Uart({
 }) {
   if (!transport) throw new Error("Missing serial transport");
   if (!firmware?.bytes) throw new Error("Missing firmware bytes");
+  if (!["hardware-reset", "go"].includes(runMode)) throw new Error(`Invalid run mode: ${runMode}`);
 
   const bootloader = new Stm32Bootloader(transport, {
     timeout,
@@ -108,6 +110,7 @@ export async function flashStm32Uart({
   });
 
   let success = false;
+  let failure;
   await transport.open();
   try {
     throwIfAborted(signal);
@@ -116,12 +119,18 @@ export async function flashStm32Uart({
 
     await enterAndSyncBootloader({ transport, bootloader, resetMode, timeout, onLog, signal });
 
+    if (run && runMode === "go" && !bootloader.supportedCommands.has(COMMANDS.GO)) {
+      throw new Error("Bootloader does not support GO; select hardware-reset or disable Run after success");
+    }
+
     if (erase) {
       try {
+        throwIfAborted(signal);
         const eraseMode = await bootloader.massErase();
         onLog(`Erase complete (${eraseMode})`);
       } catch (error) {
         if (/NACK/.test(error.message) && unlock) {
+          throwIfAborted(signal);
           onLog("Erase returned NACK; trying readout unprotect. This erases the whole chip.");
           await bootloader.readoutUnprotect();
           await enterAndSyncBootloader({ transport, bootloader, resetMode, timeout, onLog, signal });
@@ -144,14 +153,35 @@ export async function flashStm32Uart({
       onLog("Verify skipped");
     }
 
-    if (run) {
+    throwIfAborted(signal);
+    if (run && runMode === "go") {
+      const prepared = await prepareForGo(transport, delay, resetMode);
+      onLog(prepared
+        ? "GO: BOOT0 run state requested; RESET kept released"
+        : "GO: control lines unchanged; BOOT0 must be restored manually before the next reset");
+      throwIfAborted(signal);
+      await bootloader.go(address, { signal });
+      onLog(`GO command acknowledged: ${toHex(address, 8)}; application execution not confirmed`);
+    } else if (run && resetMode !== "none") {
       await resetToRun(transport, delay, resetMode);
-      onLog("Reset and run");
+      onLog("Hardware reset sequence sent; application execution not confirmed");
+    } else {
+      onLog(run ? "Run skipped: manual reset required" : "Run skipped");
     }
 
-    onLog("Done");
     success = true;
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
-    if (close || !success) await transport.close();
+    if (close || !success) {
+      try {
+        await transport.close();
+      } catch (error) {
+        if (!failure) throw error;
+        onLog(`Serial port cleanup failed: ${error.message}`);
+      }
+    }
   }
+  onLog("Done");
 }

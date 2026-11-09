@@ -48,6 +48,25 @@ Marketplace 当前不支持直接使用 `vsce publish --oidc` 的完整可信发
 
 注意：Azure 登录成功只表明联合身份配置有效，**不表示 Publisher 权限已经完成**。若 Marketplace 拒绝发布，请先核实应用所对应的 Marketplace 成员身份与角色，不要尝试绕过授权。
 
+## 预发布步骤
+
+预发布使用同一个扩展 ID，通过 Marketplace 的预发布通道提供。版本字段必须是三段数字，不能写 `0.2.2-beta.1`。例如本次测试版使用 `package.json` 版本 `0.2.2`，Git 标签为 `v0.2.2-pre.1`。
+
+1. 更新 `package.json`、`package-lock.json`、`CHANGELOG.md` 和使用说明，完成本地测试与 VSIX 检查。
+2. 提交并推送 `main`，等待六平台 CI 通过。
+3. 给已验证提交打预发布标签并推送：
+
+   ```bash
+   git tag v0.2.2-pre.1
+   git push origin v0.2.2-pre.1
+   ```
+
+4. 标签触发六平台重新构建。构建和发布均由 `.github/scripts/release-channel.mjs` 校验通道：`v<版本>-pre.N` 为预发布，`v<版本>` 为正式版，版本不匹配或其他格式直接失败。分支和 PR 只构建。
+5. 预发布打包及 Marketplace 发布均使用 `--pre-release`。GitHub Release 使用 `--prerelease --latest=false`，正式版 `Latest` 保持不变。Entra OIDC 认证沿用现有 Environment，不增加凭据。
+6. 检查六个平台资产和 Marketplace 的 `Microsoft.VisualStudio.Code.PreRelease=true`。用户可在 VS Code 的扩展详情选择 **Switch to Pre-Release Version**。
+
+同一个数字版本不能同时用于正式版和预发布。后续新包须增加数字版本；例如测试版 `0.2.2` 后可发布正式版 `0.2.3`。`pre.N` 只用于 Git 标签标识，不能通过修改后缀重复上传不同内容的 `0.2.2`。同一标签的失败重试可以使用 `--skip-duplicate` 跳过已发布的平台。详见 [VS Code 预发布说明](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions)。
+
 ## 正式发布步骤
 
 1. 合并改动至 `main`；确认 PR/主分支六平台 CI 全部通过，按需进行硬件实机验证。
@@ -62,7 +81,7 @@ Marketplace 当前不支持直接使用 `vsce publish --oidc` 的完整可信发
    git push origin v0.2.1
    ```
 
-3. 标签必须与 `package.json` 的版本严格一致，且指向该版本提交。推送 `v0.2.1` 将重新执行六平台测试/打包，成功后自动将六个 VSIX 上传到 GitHub Release，并推送到 VS Code Marketplace。已发布同版本时，`--skip-duplicate` 使重新运行能够跳过重复包。
+3. 正式版标签必须为 `v<package.json 版本>`，且指向该版本提交。推送 `v0.2.1` 将重新执行六平台测试/打包，成功后自动将六个 VSIX 上传到 GitHub Release，并推送到 VS Code Marketplace。已发布同版本时，`--skip-duplicate` 使重新运行能够跳过重复包。
 4. 通过 [GitHub Actions](https://github.com/totok22/SerialFlash/actions) 检查各 job 状态，并在 [Marketplace 页面](https://marketplace.visualstudio.com/items?itemName=totok22.serialflash-stm32) 确认版本。普通 `main` 推送和 PR **不会发布**。
 
 如需手动从 GitHub Release 安装，下载与系统架构匹配的 `.vsix`，在 VS Code 中选择 **Extensions: Install from VSIX...**。

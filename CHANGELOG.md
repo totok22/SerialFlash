@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.2（预发布）- 2026-11-08
+
+- 新增烧录后 `runMode`：默认 `hardware-reset`，可选 Bootloader `go`；`runAfterWrite=false` 跳过运行。设置、面板、项目配置与 Profile 支持该选项，新烧录历史记录运行选择。
+- GO 使用解析后的烧录地址（HEX 基地址、显式覆盖地址或 BIN 默认 `0x08000000`），要求该处有应用向量表。擦除前检查 GET 返回的 GO 支持情况；失败不自动回退到硬件复位。日志区分 GO 应答、已发送复位时序和手动模式跳过运行，不将这些结果当作应用已运行。
+- CH340C 经典电路独立维护进入 Bootloader、复位运行和 GO 准备的双线组合。入口保留旧实现的有效组合；运行态改为 `(DTR, RTS) = (false, true)`。GO 前等待 100 ms，通用预设仍按 `boot0Low` 与复位释放状态准备；`none` 不操作控制线。
+- CH340X 保留此前已测的入口时序，结束复位改为固定 DTR 运行态并通过 RTS 产生 NRST 脉冲，最终保持 `(RTS, DTR) = (true, false)`。GO 准备也使用该终态，只改变 DTR、不产生复位脉冲，并等待 250 ms。原有复位等待保留，本次新终态待实机回归。
+- 修复 Node 串口适配层的局部控制线更新：每次 `set()` 保留并传入完整 `dtr`/`rts` 状态，电平取反约定不变。通用硬件复位的最终状态按预设保留 BOOT0 运行态与复位释放态，不再统一写入 `false/false`。
+- `Done` 在串口按配置关闭成功后才输出；关闭失败时保留失败结果，清理错误不覆盖原始协议异常。
+- 增加预发布流水线：`v<版本>-pre.N` 标签生成 Marketplace 预发布 VSIX 和 GitHub Pre-release；普通版本标签仍走正式发布，错误标签会终止。
+- 同步中英文使用、硬件和协议说明，补充运行结果与关闭串口 A/B 验证模板。关闭串口后的电平取决于驱动和电路。CH340C PDM 板已完成部分实机验证，范围见 `docs/HARDWARE_VALIDATION.md`；CH340X 与其他平台待回归。
 - SerialFlash 输出通道中的 `Troubleshooting` 排查提示改为跟随 VS Code 显示语言：中文界面显示中文，其他语言显示英文。此前该提示在日志中固定为中文，Webview 面板和错误弹窗已经本地化。外部错误文本和设备输出仍保持原样。
 - 双语 README 的“面板预览”新增一段操作演示 GIF（`docs/assets/serialflash-demo.gif`），展示选择串口、开始烧录与 Writing/Verifying 进度。
 

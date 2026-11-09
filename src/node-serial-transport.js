@@ -4,6 +4,8 @@ export class NodeSerialTransport {
     this.log = log;
     this.readBuffer = [];
     this.waiters = [];
+    // Match SerialPort's initial defaults; retain both lines on every set().
+    this.controlSignals = { dtr: true, rts: true };
     this.onData = (chunk) => {
       this.readBuffer.push(...chunk);
       this.resolveWaiters();
@@ -15,6 +17,7 @@ export class NodeSerialTransport {
     await new Promise((resolve, reject) => {
       this.port.open((error) => (error ? reject(error) : resolve()));
     });
+    this.controlSignals = { dtr: true, rts: true };
     if (options?.setSignals) await this.setSignals(options.setSignals);
   }
 
@@ -68,12 +71,13 @@ export class NodeSerialTransport {
   }
 
   async setSignals(signals) {
-    const nextSignals = {};
+    const nextSignals = { ...this.controlSignals };
     if (signals.dataTerminalReady !== undefined) nextSignals.dtr = !signals.dataTerminalReady;
     if (signals.requestToSend !== undefined) nextSignals.rts = !signals.requestToSend;
     await new Promise((resolve, reject) => {
       this.port.set(nextSignals, (error) => (error ? reject(error) : resolve()));
     });
+    this.controlSignals = nextSignals;
   }
 
   resolveWaiters() {

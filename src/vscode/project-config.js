@@ -105,6 +105,7 @@ export function serialFlashSettingsFromState(settings) {
     "serialFlash.eraseBeforeWrite": settings.eraseBeforeWrite !== false,
     "serialFlash.verifyAfterWrite": settings.verifyAfterWrite !== false,
     "serialFlash.runAfterWrite": settings.runAfterWrite !== false,
+    "serialFlash.runMode": settings.runMode || "hardware-reset",
     "serialFlash.closePortAfterWrite": settings.closePortAfterWrite !== false,
     "serialFlash.unlockReadProtection": settings.unlockReadProtection === true,
     "serialFlash.autoDiscoverFirmware": settings.autoDiscoverFirmware !== false,
@@ -134,6 +135,7 @@ export function projectProfileFromState(name, settings) {
     eraseBeforeWrite: settings.eraseBeforeWrite !== false,
     verifyAfterWrite: settings.verifyAfterWrite !== false,
     runAfterWrite: settings.runAfterWrite !== false,
+    runMode: settings.runMode || "hardware-reset",
     closePortAfterWrite: settings.closePortAfterWrite !== false,
     unlockReadProtection: settings.unlockReadProtection === true,
   };

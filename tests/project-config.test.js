@@ -25,6 +25,7 @@ test("serialFlashSettingsFromState produces workspace settings keys", () => {
     eraseBeforeWrite: false,
     verifyAfterWrite: true,
     runAfterWrite: false,
+    runMode: "go",
     closePortAfterWrite: true,
     unlockReadProtection: true,
     autoDiscoverFirmware: true,
@@ -39,6 +40,8 @@ test("serialFlashSettingsFromState produces workspace settings keys", () => {
   assert.equal(settings["serialFlash.customReset.boot0High"], "rts-true");
   assert.equal(settings["serialFlash.customReset.resetAssert"], "dtr-false");
   assert.equal(settings["serialFlash.eraseBeforeWrite"], false);
+  assert.equal(settings["serialFlash.runAfterWrite"], false);
+  assert.equal(settings["serialFlash.runMode"], "go");
   assert.equal(settings["serialFlash.unlockReadProtection"], true);
   assert.deepEqual(settings["serialFlash.firmwareGlobs"], ["PDM/**/*.hex"]);
   assert.deepEqual(settings["serialFlash.excludeGlobs"], ["**/.git/**"]);
@@ -60,6 +63,22 @@ test("projectProfileFromState creates named multi-project profile", () => {
   assert.equal(profile.resetMode, "ch340x");
   assert.equal(profile.customReset.boot0High, "rts-true");
   assert.equal(profile.eraseBeforeWrite, true);
+  assert.equal(profile.runMode, "hardware-reset");
+});
+
+test("project templates preserve both run modes and No Run independently", () => {
+  assert.equal(serialFlashSettingsFromState({})["serialFlash.runMode"], "hardware-reset");
+  for (const runMode of ["hardware-reset", "go"]) {
+    for (const runAfterWrite of [true, false]) {
+      const settings = { runMode, runAfterWrite };
+      const profile = projectProfileFromState("target", settings);
+      const template = serialFlashSettingsFromState(settings);
+      assert.equal(profile.runMode, runMode);
+      assert.equal(profile.runAfterWrite, runAfterWrite);
+      assert.equal(template["serialFlash.runMode"], runMode);
+      assert.equal(template["serialFlash.runAfterWrite"], runAfterWrite);
+    }
+  }
 });
 
 test("parseJsonc accepts comments and trailing commas", () => {
@@ -104,12 +123,16 @@ test("writeProjectSettings merges JSONC settings and preserves unrelated keys", 
     firmware: "build/app.hex",
     port: "COM3",
     firmwareGlobs: ["build/**/*.hex"],
+    runMode: "go",
+    runAfterWrite: false,
     excludeGlobs: ["**/.git/**"],
   });
 
   const written = JSON.parse(await readFile(join(vscodeDir, "settings.json"), "utf8"));
   assert.equal(written["editor.tabSize"], 2);
   assert.equal(written["serialFlash.firmware"], "build/app.hex");
+  assert.equal(written["serialFlash.runMode"], "go");
+  assert.equal(written["serialFlash.runAfterWrite"], false);
   assert.deepEqual(written["serialFlash.firmwareGlobs"], ["build/**/*.hex"]);
   assert.deepEqual(written["serialFlash.excludeGlobs"], ["**/.git/**"]);
 });

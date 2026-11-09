@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { applyFlashSettings, flashSettingsKeys, readFlashSettings, resolveResetConfig, updateWorkspaceSetting } from "../src/vscode/settings.js";
 
 function fakeVscode(values = {}, inspected = {}, { workspaceFolders } = {}) {
@@ -57,6 +58,34 @@ test("readFlashSettings returns explicitly configured flashAddress", () => {
 test("flashSettingsKeys excludes project profile collection", () => {
   assert.equal(flashSettingsKeys().includes("projects"), false);
   assert.equal(flashSettingsKeys().includes("firmware"), true);
+  assert.equal(flashSettingsKeys().includes("runMode"), true);
+});
+
+test("run mode defaults and manifest agree while No Run remains independent", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const properties = manifest.contributes.configuration.properties;
+  assert.equal(properties["serialFlash.runMode"].default, "hardware-reset");
+  assert.deepEqual(properties["serialFlash.runMode"].enum, ["hardware-reset", "go"]);
+  assert.deepEqual(properties["serialFlash.projects"].items.properties.runMode.enum, ["hardware-reset", "go"]);
+  const defaults = readFlashSettings(fakeVscode(), fakeContext());
+  assert.equal(defaults.runMode, "hardware-reset");
+  assert.equal(defaults.runAfterWrite, true);
+  for (const runMode of ["hardware-reset", "go"]) {
+    for (const runAfterWrite of [true, false]) {
+      const settings = readFlashSettings(fakeVscode({ runMode, runAfterWrite }), fakeContext());
+      assert.equal(settings.runMode, runMode);
+      assert.equal(settings.runAfterWrite, runAfterWrite);
+    }
+  }
+});
+
+test("applyFlashSettings applies run mode overrides without enabling No Run", async () => {
+  const vscode = fakeVscode();
+  await applyFlashSettings(vscode, { runMode: "go", runAfterWrite: false });
+  assert.deepEqual(vscode.updates, [["runAfterWrite", false, 2], ["runMode", "go", 2]]);
+  vscode.updates.length = 0;
+  await applyFlashSettings(vscode, { runAfterWrite: true });
+  assert.deepEqual(vscode.updates, [["runAfterWrite", true, 2]], "legacy profiles leave runMode untouched");
 });
 
 test("resolveResetConfig returns custom reset mapping", () => {
